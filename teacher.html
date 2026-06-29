@@ -6,18 +6,21 @@
     <title>Sasha Math - Teacher Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background: #f5f5f5; }
+        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background: #f5f5f5; overflow: hidden; }
         
+        /* Экран входа */
         #login-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; }
         .login-box { background: white; padding: 30px; border-radius: 12px; text-align: center; width: 300px; }
         .login-box input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; }
         .login-box button { width: 100%; padding: 10px; background: #2481cc; color: white; border: none; border-radius: 6px; cursor: pointer; }
 
+        /* Основной интерфейс */
         #app-screen { display: none; width: 100%; height: 100%; }
         
-        .sidebar { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        /* Сайдбар */
+        .sidebar { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 10; }
         .sidebar-tabs { display: flex; border-bottom: 1px solid #eee; }
-        .sidebar-tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: 600; color: #666; border-bottom: 2px solid transparent; }
+        .sidebar-tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: 600; color: #666; border-bottom: 2px solid transparent; user-select: none; }
         .sidebar-tab.active { color: #2481cc; border-bottom-color: #2481cc; background: #f9f9f9; }
         
         .submissions-list { flex: 1; overflow-y: auto; }
@@ -31,19 +34,31 @@
         .status-approved { background: #d4edda; color: #155724; }
         .status-rejected { background: #f8d7da; color: #721c24; }
 
-        .main-area { flex: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; }
+        /* Основная область */
+        .main-area { flex: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; position: relative; }
         
-        /* Галерея фото */
-        .photo-viewer { flex: 1; background: #333; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px; margin-bottom: 20px; position: relative; }
-        .photo-viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .gallery-nav { 
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); 
-            background: rgba(0,0,0,0.7); color: white; padding: 8px 16px; border-radius: 20px; 
-            display: flex; align-items: center; gap: 15px; font-size: 14px;
+        /* Контейнер фото (миниатюра) */
+        .photo-container { 
+            flex: 1; background: #333; border-radius: 12px; overflow: hidden; 
+            display: flex; align-items: center; justify-content: center; 
+            min-height: 400px; margin-bottom: 20px; position: relative; cursor: zoom-in;
         }
-        .gallery-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; padding: 0 5px; }
-        .gallery-btn:disabled { opacity: 0.3; cursor: default; }
-        
+        .photo-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .zoom-hint { 
+            position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.6); 
+            color: white; padding: 5px 10px; border-radius: 6px; font-size: 12px; pointer-events: none;
+        }
+
+        /* Навигация по фото (в миниатюре) */
+        .gallery-nav-mini { 
+            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); 
+            background: rgba(0,0,0,0.7); color: white; padding: 6px 12px; border-radius: 20px; 
+            display: flex; align-items: center; gap: 10px; font-size: 13px;
+        }
+        .gallery-btn-mini { background: none; border: none; color: white; font-size: 16px; cursor: pointer; padding: 0 5px; }
+        .gallery-btn-mini:disabled { opacity: 0.3; cursor: default; }
+
+        /* Панель действий */
         .action-panel { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         .action-row { display: flex; gap: 10px; margin-bottom: 15px; }
         .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
@@ -53,13 +68,58 @@
         textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; resize: vertical; min-height: 80px; box-sizing: border-box; font-family: inherit; }
         .empty-state { text-align: center; color: #999; margin-top: 100px; }
         .readonly-info { font-size: 13px; color: #666; margin-top: 10px; font-style: italic; }
+
+        /* === LIGHTBOX (Полноэкранный просмотр) === */
+        #lightbox { 
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); 
+            z-index: 2000; flex-direction: column; align-items: center; justify-content: center;
+        }
+        #lightbox.active { display: flex; }
+        
+        .lightbox-toolbar { 
+            position: absolute; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 2001;
+        }
+        .lb-btn { 
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); 
+            color: white; width: 40px; height: 40px; border-radius: 8px; cursor: pointer; 
+            display: flex; align-items: center; justify-content: center; font-size: 18px;
+            backdrop-filter: blur(5px); transition: background 0.2s;
+        }
+        .lb-btn:hover { background: rgba(255,255,255,0.2); }
+        .lb-btn.close { background: rgba(220, 53, 69, 0.8); border-color: transparent; }
+        .lb-btn.close:hover { background: rgba(220, 53, 69, 1); }
+
+        .lightbox-image-wrapper { 
+            width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
+            overflow: hidden; position: relative; cursor: grab;
+        }
+        .lightbox-image-wrapper:active { cursor: grabbing; }
+        
+        #lightbox-img { 
+            max-width: 90%; max-height: 90%; object-fit: contain; 
+            transform-origin: center center; transition: transform 0.1s ease-out;
+            user-select: none; -webkit-user-drag: none;
+        }
+
+        .lightbox-counter { 
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); 
+            background: rgba(0,0,0,0.6); color: white; padding: 8px 16px; border-radius: 20px; 
+            font-size: 14px; display: flex; align-items: center; gap: 15px;
+        }
+        .lb-nav-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; }
+        .lb-nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+        .lightbox-zoom-controls { 
+            position: absolute; bottom: 30px; right: 30px; display: flex; gap: 5px;
+        }
     </style>
 </head>
 <body>
 
+    <!-- Экран входа -->
     <div id="login-screen">
         <div class="login-box">
-            <h2>‍🏫 Учительская</h2>
+            <h2>👨‍🏫 Учительская</h2>
             <p style="font-size: 13px; color: #666;">Введите пароль для доступа</p>
             <input type="password" id="password-input" placeholder="Пароль">
             <button onclick="checkPassword()">Войти</button>
@@ -67,11 +127,12 @@
         </div>
     </div>
 
+    <!-- Основной экран -->
     <div id="app-screen">
         <div class="sidebar">
             <div class="sidebar-tabs">
                 <div class="sidebar-tab active" onclick="switchTeacherTab('pending', this)">📥 Новые</div>
-                <div class="sidebar-tab" onclick="switchTeacherTab('archive', this)">📂 Архив</div>
+                <div class="sidebar-tab" onclick="switchTeacherTab('archive', this)"> Архив</div>
             </div>
             <div class="submissions-list" id="submissions-list">
                 <div style="padding: 20px; text-align: center; color: #999;">Загрузка...</div>
@@ -80,12 +141,15 @@
         
         <div class="main-area">
             <div id="viewer-content" style="display: none; height: 100%; flex-direction: column;">
-                <div class="photo-viewer">
+                <div class="photo-container" onclick="openLightbox()">
                     <img id="hw-photo" src="" alt="Домашнее задание">
-                    <div id="gallery-controls" class="gallery-nav" style="display:none;">
-                        <button class="gallery-btn" id="prev-btn" onclick="changePhoto(-1)">‹</button>
-                        <span id="photo-counter">1 / 1</span>
-                        <button class="gallery-btn" id="next-btn" onclick="changePhoto(1)">›</button>
+                    <div class="zoom-hint">🔍 Нажми для просмотра</div>
+                    
+                    <!-- Навигация в миниатюре -->
+                    <div id="mini-gallery-nav" class="gallery-nav-mini" style="display:none;">
+                        <button class="gallery-btn-mini" id="mini-prev" onclick="event.stopPropagation(); changePhoto(-1)">‹</button>
+                        <span id="mini-counter">1 / 1</span>
+                        <button class="gallery-btn-mini" id="mini-next" onclick="event.stopPropagation(); changePhoto(1)">›</button>
                     </div>
                 </div>
                 
@@ -97,13 +161,39 @@
                     </div>
                     <textarea id="teacher-comment" placeholder="Комментарий ученику"></textarea>
                     <div id="readonly-msg" class="readonly-info" style="display:none;">Эта работа уже проверена. Вы можете изменить комментарий.</div>
-                    <button class="btn" style="background:#6c757d; color:white; margin-top:10px; width:100%; display:none;" onclick="processSubmission(null)" id="btn-save-comment"> Сохранить комментарий</button>
+                    <button class="btn" style="background:#6c757d; color:white; margin-top:10px; width:100%; display:none;" onclick="processSubmission(null)" id="btn-save-comment">💾 Сохранить комментарий</button>
                 </div>
             </div>
             
             <div id="empty-state" class="empty-state">
                 Выберите работу слева для просмотра
             </div>
+        </div>
+    </div>
+
+    <!-- LIGHTBOX (Полноэкранный просмотр) -->
+    <div id="lightbox">
+        <div class="lightbox-toolbar">
+            <button class="lb-btn" onclick="zoomLightbox(0.5)" title="Уменьшить">−</button>
+            <button class="lb-btn" onclick="resetZoom()" title="Сбросить масштаб">⟲</button>
+            <button class="lb-btn" onclick="zoomLightbox(2)" title="Увеличить">+</button>
+            <button class="lb-btn close" onclick="closeLightbox()" title="Закрыть (Esc)">✕</button>
+        </div>
+        
+        <div class="lightbox-image-wrapper" id="lb-wrapper">
+            <img id="lightbox-img" src="" alt="">
+        </div>
+        
+        <div class="lightbox-counter" id="lb-counter" style="display:none;">
+            <button class="lb-nav-btn" id="lb-prev" onclick="changePhoto(-1)">‹</button>
+            <span id="lb-count-text">1 / 1</span>
+            <button class="lb-nav-btn" id="lb-next" onclick="changePhoto(1)">›</button>
+        </div>
+        
+        <div class="lightbox-zoom-controls">
+            <button class="lb-btn" onclick="zoomLightbox(0.5)">−</button>
+            <button class="lb-btn" onclick="resetZoom()">⟲</button>
+            <button class="lb-btn" onclick="zoomLightbox(2)">+</button>
         </div>
     </div>
 
@@ -119,9 +209,56 @@
         let currentPhotos = [];
         let currentPhotoIndex = 0;
 
+        // Переменные для Lightbox
+        let lbScale = 1;
+        let lbTranslateX = 0;
+        let lbTranslateY = 0;
+        let isDragging = false;
+        let startX, startY;
+
         document.addEventListener('DOMContentLoaded', () => {
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             if (sessionStorage.getItem('teacher_auth') === 'true') showApp();
+            
+            // Обработчик клавиш для Lightbox
+            document.addEventListener('keydown', (e) => {
+                if (document.getElementById('lightbox').classList.contains('active')) {
+                    if (e.key === 'Escape') closeLightbox();
+                    if (e.key === 'ArrowLeft') changePhoto(-1);
+                    if (e.key === 'ArrowRight') changePhoto(1);
+                    if (e.key === '+' || e.key === '=') zoomLightbox(1.5);
+                    if (e.key === '-') zoomLightbox(0.66);
+                    if (e.key === '0') resetZoom();
+                }
+            });
+
+            // Зум колесиком мыши в Lightbox
+            document.getElementById('lb-wrapper').addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const factor = e.deltaY < 0 ? 1.2 : 0.8;
+                zoomLightbox(factor);
+            }, { passive: false });
+
+            // Drag & Drop в Lightbox
+            const wrapper = document.getElementById('lb-wrapper');
+            wrapper.addEventListener('mousedown', (e) => {
+                if (lbScale > 1) {
+                    isDragging = true;
+                    startX = e.clientX - lbTranslateX;
+                    startY = e.clientY - lbTranslateY;
+                    wrapper.style.cursor = 'grabbing';
+                }
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                lbTranslateX = e.clientX - startX;
+                lbTranslateY = e.clientY - startY;
+                updateLightboxTransform();
+            });
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+                document.getElementById('lb-wrapper').style.cursor = lbScale > 1 ? 'grab' : 'default';
+            });
         });
 
         function checkPassword() {
@@ -211,7 +348,7 @@
             document.getElementById('student-info').innerText = `Ученик: ${sub.students?.name || 'Unknown'} (ID: ${sub.student_id})`;
             document.getElementById('teacher-comment').value = sub.teacher_comment || '';
             
-            // Обработка фото (может быть строка или JSON массив)
+            // Обработка фото
             try {
                 currentPhotos = JSON.parse(sub.photo_url);
                 if (!Array.isArray(currentPhotos)) currentPhotos = [currentPhotos];
@@ -222,7 +359,6 @@
             currentPhotoIndex = 0;
             updateGallery();
             
-            // Управление кнопками
             const isPending = sub.status === 'pending';
             document.getElementById('action-buttons').style.display = isPending ? 'flex' : 'none';
             document.getElementById('readonly-msg').style.display = isPending ? 'none' : 'block';
@@ -231,20 +367,20 @@
 
         function updateGallery() {
             const img = document.getElementById('hw-photo');
-            const controls = document.getElementById('gallery-controls');
-            const counter = document.getElementById('photo-counter');
-            const prevBtn = document.getElementById('prev-btn');
-            const nextBtn = document.getElementById('next-btn');
+            const miniNav = document.getElementById('mini-gallery-nav');
+            const miniCounter = document.getElementById('mini-counter');
+            const miniPrev = document.getElementById('mini-prev');
+            const miniNext = document.getElementById('mini-next');
             
             img.src = currentPhotos[currentPhotoIndex];
             
             if (currentPhotos.length > 1) {
-                controls.style.display = 'flex';
-                counter.innerText = `${currentPhotoIndex + 1} / ${currentPhotos.length}`;
-                prevBtn.disabled = currentPhotoIndex === 0;
-                nextBtn.disabled = currentPhotoIndex === currentPhotos.length - 1;
+                miniNav.style.display = 'flex';
+                miniCounter.innerText = `${currentPhotoIndex + 1} / ${currentPhotos.length}`;
+                miniPrev.disabled = currentPhotoIndex === 0;
+                miniNext.disabled = currentPhotoIndex === currentPhotos.length - 1;
             } else {
-                controls.style.display = 'none';
+                miniNav.style.display = 'none';
             }
         }
 
@@ -253,6 +389,77 @@
             if (currentPhotoIndex < 0) currentPhotoIndex = 0;
             if (currentPhotoIndex >= currentPhotos.length) currentPhotoIndex = currentPhotos.length - 1;
             updateGallery();
+            updateLightboxImage();
+        }
+
+        // === LIGHTBOX ФУНКЦИИ ===
+        function openLightbox() {
+            const lb = document.getElementById('lightbox');
+            const lbImg = document.getElementById('lightbox-img');
+            const lbCounter = document.getElementById('lb-counter');
+            
+            lbImg.src = currentPhotos[currentPhotoIndex];
+            resetZoom();
+            
+            if (currentPhotos.length > 1) {
+                lbCounter.style.display = 'flex';
+                updateLightboxCounter();
+            } else {
+                lbCounter.style.display = 'none';
+            }
+            
+            lb.classList.add('active');
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+            resetZoom();
+        }
+
+        function updateLightboxImage() {
+            const lbImg = document.getElementById('lightbox-img');
+            lbImg.src = currentPhotos[currentPhotoIndex];
+            resetZoom();
+            updateLightboxCounter();
+        }
+
+        function updateLightboxCounter() {
+            const counter = document.getElementById('lb-count-text');
+            const prevBtn = document.getElementById('lb-prev');
+            const nextBtn = document.getElementById('lb-next');
+            
+            if (currentPhotos.length > 1) {
+                counter.innerText = `${currentPhotoIndex + 1} / ${currentPhotos.length}`;
+                prevBtn.disabled = currentPhotoIndex === 0;
+                nextBtn.disabled = currentPhotoIndex === currentPhotos.length - 1;
+            }
+        }
+
+        function zoomLightbox(factor) {
+            lbScale *= factor;
+            // Ограничиваем зум
+            if (lbScale < 0.5) lbScale = 0.5;
+            if (lbScale > 10) lbScale = 10;
+            
+            // Если уменьшили до 1 или меньше - сбрасываем позицию
+            if (lbScale <= 1) {
+                lbTranslateX = 0;
+                lbTranslateY = 0;
+            }
+            
+            updateLightboxTransform();
+        }
+
+        function resetZoom() {
+            lbScale = 1;
+            lbTranslateX = 0;
+            lbTranslateY = 0;
+            updateLightboxTransform();
+        }
+
+        function updateLightboxTransform() {
+            const img = document.getElementById('lightbox-img');
+            img.style.transform = `translate(${lbTranslateX}px, ${lbTranslateY}px) scale(${lbScale})`;
         }
 
         async function processSubmission(newStatus) {
@@ -263,7 +470,6 @@
             const btnReject = document.querySelector('.btn-reject');
             const btnSave = document.getElementById('btn-save-comment');
             
-            // Блокируем кнопки
             if(btnApprove) btnApprove.disabled = true;
             if(btnReject) btnReject.disabled = true;
             if(btnSave) btnSave.disabled = true;
@@ -280,7 +486,6 @@
                 
                 if (updateError) throw updateError;
                 
-                // Если статус изменился на approved - начисляем баллы
                 if (newStatus === 'approved') {
                     const sub = submissionsCache.find(s => s.id === currentSubmissionId);
                     if (sub) {
@@ -302,7 +507,6 @@
                 
                 alert(newStatus ? (newStatus === 'approved' ? 'Работа принята!' : 'Работа возвращена.') : 'Комментарий сохранен!');
                 
-                // Перезагружаем список
                 await loadSubmissions();
                 document.getElementById('viewer-content').style.display = 'none';
                 document.getElementById('empty-state').style.display = 'block';
