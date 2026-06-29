@@ -259,35 +259,29 @@
         
         function log(msg) { console.log(msg); const d=document.getElementById('debug'); if(d) d.innerText += msg+'\n'; }
 
-                document.addEventListener('DOMContentLoaded', async () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             const tg = window.Telegram.WebApp;
             tg.ready(); 
             tg.expand();
 
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             
-            // ВРЕМЕННАЯ ОТЛАДКА: Выводим ВСЁ, что есть в initData
-            console.log('--- DEBUG START ---');
-            console.log('initData:', tg.initData);
-            console.log('initDataUnsafe:', tg.initDataUnsafe);
-            console.log('user from Unsafe:', tg.initDataUnsafe?.user);
-            console.log('--- DEBUG END ---');
-
             const tgUser = tg.initDataUnsafe?.user;
             
             if (tgUser && tgUser.id) {
                 currentUser = tgUser;
-                log('✅ Данные получены от Telegram');
+                // Убрали лишний лог про получение данных
             } else {
-                // Показываем в логах на экране, что именно пришло
-                const debugInfo = JSON.stringify(tg.initDataUnsafe).substring(0, 100);
-                log(`❌ Нет user. rawData: ${debugInfo}`);
-                
+                // Если данных нет — показываем ошибку
                 currentUser = null;
+                
                 document.getElementById('user-name').innerText = 'Ошибка доступа';
                 document.getElementById('val-rating').innerText = '-';
                 document.getElementById('val-huikons').innerText = '-';
                 document.getElementById('val-lives').innerText = '-';
+                
+                // Показываем сообщение об ошибке в дебаг-блоке (на всякий случай)
+                log('❌ Нет данных пользователя. Откройте через кнопку бота!');
                 return; 
             }
 
