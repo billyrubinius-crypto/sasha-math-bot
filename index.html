@@ -266,12 +266,24 @@
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             
             const tgUser = tg.initDataUnsafe?.user;
-            if (tgUser) {
+            
+            // Проверяем, есть ли данные от Telegram
+            if (tgUser && tgUser.id) {
                 currentUser = tgUser;
-                log('✅ Данные от Telegram');
+                log('✅ Данные получены от Telegram');
             } else {
-                currentUser = { id: 677840357, first_name: "Billy", photo_url: null }; 
-                log('⚠️ Тестовый ID (LocalTunnel)');
+                // Если данных нет — показываем ошибку и останавливаем загрузку
+                currentUser = null;
+                log('❌ Нет данных пользователя. Откройте через кнопку бота!');
+                
+                // Показываем сообщение об ошибке на экране
+                document.getElementById('user-name').innerText = 'Ошибка доступа';
+                document.getElementById('val-rating').innerText = '-';
+                document.getElementById('val-huikons').innerText = '-';
+                document.getElementById('val-lives').innerText = '-';
+                
+                // Прерываем выполнение функции, чтобы не было ошибок в базе
+                return; 
             }
 
             document.getElementById('user-name').innerText = currentUser.first_name;
