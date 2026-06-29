@@ -265,24 +265,30 @@
 
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             
+                        const tg = window.Telegram.WebApp;
+            
+            // ВРЕМЕННАЯ ОТЛАДКА: Выводим ВСЁ, что есть в initData
+            console.log('--- DEBUG START ---');
+            console.log('initData:', tg.initData);
+            console.log('initDataUnsafe:', tg.initDataUnsafe);
+            console.log('user from Unsafe:', tg.initDataUnsafe?.user);
+            console.log('--- DEBUG END ---');
+
             const tgUser = tg.initDataUnsafe?.user;
             
-            // Проверяем, есть ли данные от Telegram
             if (tgUser && tgUser.id) {
                 currentUser = tgUser;
                 log('✅ Данные получены от Telegram');
             } else {
-                // Если данных нет — показываем ошибку и останавливаем загрузку
-                currentUser = null;
-                log('❌ Нет данных пользователя. Откройте через кнопку бота!');
+                // Показываем в логах на экране, что именно пришло
+                const debugInfo = JSON.stringify(tg.initDataUnsafe).substring(0, 100);
+                log(`❌ Нет user. rawData: ${debugInfo}`);
                 
-                // Показываем сообщение об ошибке на экране
+                currentUser = null;
                 document.getElementById('user-name').innerText = 'Ошибка доступа';
                 document.getElementById('val-rating').innerText = '-';
                 document.getElementById('val-huikons').innerText = '-';
                 document.getElementById('val-lives').innerText = '-';
-                
-                // Прерываем выполнение функции, чтобы не было ошибок в базе
                 return; 
             }
 
