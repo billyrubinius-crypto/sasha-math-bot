@@ -259,13 +259,12 @@
         
         function log(msg) { console.log(msg); const d=document.getElementById('debug'); if(d) d.innerText += msg+'\n'; }
 
-        document.addEventListener('DOMContentLoaded', async () => {
+                document.addEventListener('DOMContentLoaded', async () => {
             const tg = window.Telegram.WebApp;
-            tg.ready(); tg.expand();
+            tg.ready(); 
+            tg.expand();
 
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            
-                        const tg = window.Telegram.WebApp;
             
             // ВРЕМЕННАЯ ОТЛАДКА: Выводим ВСЁ, что есть в initData
             console.log('--- DEBUG START ---');
