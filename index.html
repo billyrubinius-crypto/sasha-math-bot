@@ -189,23 +189,27 @@
     <!-- ЭКРАН 2: ДОМАШКА -->
     <div id="screen-homework" class="screen">
         <div class="tabs-hw">
-            <button class="tab-btn active" onclick="switchHwTab('upload')"> Сдать новое</button>
-            <button class="tab-btn" onclick="switchHwTab('archive')"> Мои работы</button>
+            <button class="tab-btn active" onclick="switchHwTab('upload')" style="font-size: 16px; font-weight: 700;">✏️ Решить домашку</button>
+            <button class="tab-btn" onclick="switchHwTab('archive')" style="font-size: 16px; font-weight: 700;">🤓 Мои работы</button>
         </div>
 
         <!-- Вкладка загрузки -->
         <div id="hw-upload" class="hw-view active">
             <div class="dz-section">
-                <div class="dz-title">Загрузить домашку</div>
+                <div class="dz-title" style="font-size: 24px; margin-bottom: 10px;">✏️ Решить домашку</div>
                 
+                <!-- Инструкция -->
+                <p style="text-align:center; font-size:13px; color:var(--tg-hint); margin-bottom:20px; line-height:1.4;">
+                    Выбери задание ниже, перейди по ссылке, реши его и вернись сюда, чтобы загрузить фото решения.
+                </p>
+
                 <!-- Выбор задания -->
                 <div class="input-group">
-                    <label style="font-size:14px; font-weight:bold; color:var(--tg-hint)">Какое ДЗ сдаешь?</label>
+                    <label style="font-size:18px; font-weight:800; color:var(--tg-text); margin-bottom:5px;">Какое ДЗ решаешь?</label>
                     <select id="assignment-select" onchange="showAssignmentDetails()">
                         <option value="">Выбери задание из списка...</option>
                     </select>
                 </div>
-
                 <!-- Карточка с деталями выбранного задания -->
                 <div id="assignment-details" style="display:none; background:var(--tg-bg); border-radius:12px; padding:15px; margin-bottom:15px; border:1px solid rgba(128,128,128,0.2);">
                     <div style="font-weight:bold; margin-bottom:8px; font-size:15px;" id="detail-title"></div>
@@ -220,7 +224,7 @@
                 </div>
                 <input type="file" id="file-input" accept="image/*" multiple onchange="handleFileSelect(event)">
 
-                <button class="primary" id="btn-upload-dz" onclick="uploadDZ()" disabled>Загрузить ДЗ</button>
+                <button class="primary" id="btn-upload-dz" onclick="uploadDZ()" disabled style="font-size: 16px; padding: 16px;">📤 Загрузить ДЗ для проверки</button>
                 <div id="dz-status" class="dz-status"></div>
             </div>
             
