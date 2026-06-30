@@ -41,6 +41,10 @@
             font-size: 36px; font-weight: bold; color: var(--tg-link); background: rgba(36,129,204,0.1);
         }
         .user-name { font-size: 22px; font-weight: 700; margin: 0; }
+        .streak-badge { 
+            display: inline-block; background: #ff9800; color: white; 
+            padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-top: 5px;
+        }
 
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
         .stat-card { background: var(--tg-secondary); border-radius: 16px; padding: 18px 10px; text-align: center; }
@@ -74,11 +78,12 @@
         .hw-view { display: none; }
         .hw-view.active { display: block; }
 
-        .input-group { display: flex; gap: 12px; margin-bottom: 15px; }
-        input[type="number"] { 
-            flex: 1; padding: 14px; border-radius: 12px; border: 1px solid rgba(128,128,128,0.2); 
-            background: var(--tg-bg); color: var(--tg-text); font-size: 16px; outline: none;
+        .input-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 15px; }
+        select { 
+            padding: 14px; border-radius: 12px; border: 1px solid rgba(128,128,128,0.2); 
+            background: var(--tg-bg); color: var(--tg-text); font-size: 16px; outline: none; width: 100%;
         }
+        
         button.primary { 
             width: 100%; padding: 14px; border-radius: 12px; border: none; 
             background: var(--tg-btn); color: var(--tg-btn-text); font-weight: 700; font-size: 15px; cursor: pointer;
@@ -164,6 +169,7 @@
         <div class="profile-header">
             <div class="avatar-container" id="user-avatar-container"></div>
             <h2 class="user-name" id="user-name">Загрузка...</h2>
+            <div id="streak-display" class="streak-badge" style="display:none;">🔥 0 дней</div>
         </div>
 
         <div class="stats-grid">
@@ -183,7 +189,7 @@
     <!-- ЭКРАН 2: ДОМАШКА -->
     <div id="screen-homework" class="screen">
         <div class="tabs-hw">
-            <button class="tab-btn active" onclick="switchHwTab('upload')">📤 Сдать новое</button>
+            <button class="tab-btn active" onclick="switchHwTab('upload')"> Сдать новое</button>
             <button class="tab-btn" onclick="switchHwTab('archive')">📂 Мои работы</button>
         </div>
 
@@ -193,7 +199,10 @@
                 <div class="dz-title">Загрузить домашку</div>
                 
                 <div class="input-group">
-                    <input type="number" id="dz-variant" placeholder="№ Варианта" min="1" inputmode="numeric">
+                    <label style="font-size:14px; font-weight:bold; color:var(--tg-hint)">Какое ДЗ сдаешь?</label>
+                    <select id="assignment-select">
+                        <option value="">Выбери задание из списка...</option>
+                    </select>
                 </div>
 
                 <div class="file-upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
@@ -238,7 +247,7 @@
             <span class="nav-icon">📚</span> Домашка
         </button>
         <button class="nav-btn" onclick="switchTab('leaderboard')">
-            <span class="nav-icon">🏆</span> Лидеры
+            <span class="nav-icon"></span> Лидеры
         </button>
     </div>
 
@@ -255,14 +264,14 @@
         
         let currentUser = null;
         let db = null;
-        let selectedFiles = []; // Теперь массив
-        
+        let selectedFiles = [];
+        let activeAssignments = [];
+
         function log(msg) { console.log(msg); const d=document.getElementById('debug'); if(d) d.innerText += msg+'\n'; }
 
         document.addEventListener('DOMContentLoaded', async () => {
             const tg = window.Telegram.WebApp;
-            tg.ready(); 
-            tg.expand();
+            tg.ready(); tg.expand();
 
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             
@@ -270,24 +279,22 @@
             
             if (tgUser && tgUser.id) {
                 currentUser = tgUser;
-                // Убрали лишний лог про получение данных
             } else {
-                // Если данных нет — показываем ошибку
                 currentUser = null;
-                
                 document.getElementById('user-name').innerText = 'Ошибка доступа';
-                document.getElementById('val-rating').innerText = '-';
-                document.getElementById('val-huikons').innerText = '-';
-                document.getElementById('val-lives').innerText = '-';
-                
-                // Показываем сообщение об ошибке в дебаг-блоке (на всякий случай)
-                log('❌ Нет данных пользователя. Откройте через кнопку бота!');
+                log('❌ Нет данных пользователя.');
                 return; 
             }
 
             document.getElementById('user-name').innerText = currentUser.first_name;
             setupAvatar(currentUser);
+            
+            // 1. Активируем задания, если пора
+            await checkAndActivateAssignments();
+            
+            // 2. Загружаем профиль и активные задания
             await loadProfile();
+            await loadActiveAssignments();
         });
 
         function setupAvatar(user) {
@@ -300,6 +307,30 @@
             }
         }
 
+        // --- АКТИВАЦИЯ ЗАДАНИЙ (АВТОПИЛОТ) ---
+        async function checkAndActivateAssignments() {
+            const todayMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"})).toISOString().split('T')[0];
+            
+            // Ищем запланированные задания для текущего пользователя, срок которых настал
+            const { data: toActivate, error } = await db
+                .from('assignments')
+                .select('id')
+                .eq('student_id', currentUser.id)
+                .eq('activation_status', 'scheduled')
+                .lte('scheduled_date', todayMSK);
+
+            if (error) { log('Ошибка активации: ' + error.message); return; }
+
+            if (toActivate && toActivate.length > 0) {
+                // Массово меняем статус на active
+                const ids = toActivate.map(a => a.id);
+                await db.from('assignments')
+                    .update({ activation_status: 'active' })
+                    .in('id', ids);
+                log(`✅ Активировано ${ids.length} заданий.`);
+            }
+        }
+
         // --- ПРОФИЛЬ И ИСТОРИЯ ---
         async function loadProfile() {
             try {
@@ -308,7 +339,7 @@
                 if (error && error.code === 'PGRST116') {
                     await db.from('students').insert([{ 
                         telegram_id: currentUser.id, name: currentUser.first_name, 
-                        rating: 50, huikons: 0, lives: 3 
+                        rating: 50, huikons: 0, lives: 3, current_streak: 0
                     }]);
                     return loadProfile();
                 } else if (error) { throw error; }
@@ -316,8 +347,17 @@
                 document.getElementById('val-rating').innerText = data.rating;
                 document.getElementById('val-huikons').innerText = data.huikons;
                 document.getElementById('val-lives').innerText = '❤️'.repeat(data.lives);
-                currentUser.stats = data;
                 
+                // Отображение стрика
+                const streakEl = document.getElementById('streak-display');
+                if (data.current_streak > 0) {
+                    streakEl.style.display = 'inline-block';
+                    streakEl.innerText = `🔥 ${data.current_streak} дней подряд`;
+                } else {
+                    streakEl.style.display = 'none';
+                }
+
+                currentUser.stats = data;
                 loadBalanceHistory();
 
             } catch (e) { log('❌ Ошибка профиля: ' + e.message); }
@@ -346,7 +386,9 @@
                     const reasonMap = {
                         'dz_upload': 'Загрузка ДЗ',
                         'dz_approved': 'ДЗ проверено ✅',
-                        'dz_rejected': 'ДЗ возвращено ❌'
+                        'streak_day_1': 'Серия 1 день 🔥',
+                        'streak_day_2': 'Серия 2 дня 🔥',
+                        'streak_day_3': 'Серия 3+ дней 🔥'
                     };
                     
                     const li = document.createElement('li');
@@ -369,7 +411,46 @@
             }
         }
 
-        // --- ЗАГРУЗКА ФОТО И ДЗ (MULTI) ---
+        // --- ЗАГРУЗКА АКТИВНЫХ ЗАДАНИЙ ---
+        async function loadActiveAssignments() {
+            const select = document.getElementById('assignment-select');
+            select.innerHTML = '<option value="">Выбери задание из списка...</option>';
+            
+            try {
+                const { data, error } = await db
+                    .from('assignments')
+                    .select('*')
+                    .eq('student_id', currentUser.id)
+                    .eq('activation_status', 'active')
+                    .eq('status', 'assigned') // Только те, что еще не сданы
+                    .order('created_at', { ascending: true });
+
+                if (error) throw error;
+                
+                activeAssignments = data || [];
+                
+                if (activeAssignments.length === 0) {
+                    select.innerHTML = '<option value="">Нет активных заданий </option>';
+                    select.disabled = true;
+                    return;
+                }
+                
+                select.disabled = false;
+                activeAssignments.forEach(asn => {
+                    const option = document.createElement('option');
+                    option.value = asn.id;
+                    
+                    const typeLabel = asn.type === 'daily' ? '📅' : asn.type === 'weekly' ? '🔥' : '👤';
+                    option.innerText = `${typeLabel} ${asn.title || 'Без названия'}`;
+                    select.appendChild(option);
+                });
+                
+            } catch (e) {
+                log('Ошибка загрузки заданий: ' + e.message);
+            }
+        }
+
+        // --- ЗАГРУЗКА ФОТО И ДЗ (НОВАЯ ЛОГИКА) ---
         function handleFileSelect(event) {
             const files = Array.from(event.target.files);
             if (files.length === 0) return;
@@ -379,7 +460,6 @@
             const fileListDiv = document.getElementById('file-list');
             const btn = document.getElementById('btn-upload-dz');
             
-            // Показываем список файлов
             fileListDiv.innerHTML = '';
             files.forEach((file, index) => {
                 const div = document.createElement('div');
@@ -413,39 +493,49 @@
 
         async function uploadDZ() {
             const btn = document.getElementById('btn-upload-dz');
-            const variantInput = document.getElementById('dz-variant');
+            const select = document.getElementById('assignment-select');
             const status = document.getElementById('dz-status');
-            const variant = variantInput.value.trim();
+            const assignmentId = select.value;
 
-            if (!variant) { status.innerText = "⚠️ Введите номер варианта!"; status.style.color = "#ff9800"; return; }
+            if (!assignmentId) { status.innerText = "⚠️ Выбери задание из списка!"; status.style.color = "#ff9800"; return; }
             if (selectedFiles.length === 0) { status.innerText = "⚠️ Выберите фото!"; status.style.color = "#ff9800"; return; }
             
+            // Проверка дедлайна (00:02 МСК)
+            const nowUTC = new Date();
+            const deadlineUTC = new Date(nowUTC);
+            deadlineUTC.setUTCHours(21, 2, 0, 0); // 21:02 UTC = 00:02 MSK
+            
+            if (nowUTC > deadlineUTC) {
+                status.innerText = "⏰ Дедлайн (00:02 МСК) уже прошел!";
+                status.style.color = "#f44336";
+                return;
+            }
+
             btn.disabled = true;
-            status.innerText = `📤 Загрузка фото (0/${selectedFiles.length})...`; 
+            status.innerText = `📤 Загрузка фото...`; 
             status.style.color = "var(--tg-text)";
 
             try {
-                // 1. Загружаем все фото в Cloudinary последовательно
+                // 1. Загружаем все фото в Cloudinary
                 const photoUrls = [];
                 for (let i = 0; i < selectedFiles.length; i++) {
-                    status.innerText = `📤 Загрузка фото (${i + 1}/${selectedFiles.length})...`;
+                    status.innerText = ` Загрузка фото (${i + 1}/${selectedFiles.length})...`;
                     const url = await uploadToCloudinary(selectedFiles[i]);
                     photoUrls.push(url);
                 }
                 
                 status.innerText = "💾 Сохранение в базу...";
                 
-                // 2. Сохраняем запись в Supabase (photo_url теперь JSON строка)
-                const { error: dbError } = await db.from('homework_submissions').insert([{
-                    student_id: currentUser.id,
-                    variant_number: parseInt(variant),
-                    photo_url: JSON.stringify(photoUrls), // Сохраняем массив как JSON
-                    status: 'pending'
-                }]);
+                // 2. Обновляем запись в assignments
+                const { error: dbError } = await db.from('assignments').update({
+                    photo_url: JSON.stringify(photoUrls),
+                    status: 'submitted',
+                    submitted_at: new Date().toISOString()
+                }).eq('id', assignmentId);
                 
                 if (dbError) throw dbError;
                 
-                // 3. Начисляем бонус за загрузку
+                // 3. Начисляем бонус за загрузку (+5 хуиконов)
                 await db.from('balance_history').insert([{
                     student_id: currentUser.id,
                     change_amount: 5,
@@ -461,14 +551,15 @@
                 
                 // Сброс формы
                 selectedFiles = [];
-                variantInput.value = '';
                 document.getElementById('file-list').innerHTML = '';
                 document.getElementById('upload-area').classList.remove('has-file');
                 document.getElementById('upload-area').querySelector('.upload-text').innerText = 'Нажми, чтобы выбрать фото (можно несколько)';
                 document.getElementById('upload-area').querySelector('.upload-icon').style.display = 'block';
+                select.value = "";
                 
                 await loadProfile();
-                loadMyHomework(); // Обновляем архив
+                loadMyHomework();
+                loadActiveAssignments(); // Обновляем список, чтобы скрыть сданное
 
             } catch (e) {
                 status.innerText = " Ошибка: " + e.message;
@@ -484,10 +575,11 @@
             const list = document.getElementById('my-hw-list');
             try {
                 const { data, error } = await db
-                    .from('homework_submissions')
+                    .from('assignments')
                     .select('*')
                     .eq('student_id', currentUser.id)
-                    .order('created_at', { ascending: false });
+                    .neq('status', 'assigned') // Показываем только сданные или проверенные
+                    .order('submitted_at', { ascending: false });
                 
                 if (error) throw error;
                 
@@ -501,12 +593,12 @@
                     const li = document.createElement('li');
                     li.className = `my-hw-item status-${hw.status}`;
                     
-                    const date = new Date(hw.created_at).toLocaleDateString('ru-RU');
-                    const statusText = hw.status === 'pending' ? 'На проверке' : 
-                                     hw.status === 'approved' ? 'Принято' : 'Возврат';
-                    const badgeClass = `badge-${hw.status}`;
+                    const date = hw.submitted_at ? new Date(hw.submitted_at).toLocaleDateString('ru-RU') : '-';
+                    const statusText = hw.status === 'submitted' ? 'На проверке' : 
+                                     hw.approval_status === 'approved' ? 'Принято' : 'Возврат';
+                    const badgeClass = hw.status === 'submitted' ? 'badge-pending' : 
+                                     hw.approval_status === 'approved' ? 'badge-approved' : 'badge-rejected';
                     
-                    // Парсим фото для количества страниц
                     let pagesCount = 1;
                     try {
                         const photos = JSON.parse(hw.photo_url);
@@ -514,17 +606,17 @@
                     } catch(e) {}
                     
                     let commentHtml = '';
-                    if (hw.teacher_comment) {
-                        const isRejected = hw.status === 'rejected';
+                    if (hw.teacher_feedback) {
+                        const isRejected = hw.approval_status === 'rejected';
                         commentHtml = `<div class="hw-comment ${isRejected ? 'rejected' : ''}">
-                            💬 ${hw.teacher_comment}
+                             ${hw.teacher_feedback}
                         </div>`;
                     }
                     
                     li.innerHTML = `
                         <div class="hw-header">
                             <div>
-                                <div class="hw-variant">Вариант №${hw.variant_number} <span class="hw-pages">📄 x${pagesCount}</span></div>
+                                <div class="hw-variant">${hw.title || 'ДЗ'} <span class="hw-pages">📄 x${pagesCount}</span></div>
                                 <div class="hw-date">${date}</div>
                             </div>
                             <span class="hw-badge ${badgeClass}">${statusText}</span>
@@ -591,6 +683,7 @@
                 document.getElementById('screen-homework').classList.add('active');
                 document.querySelectorAll('.nav-btn')[1].classList.add('active');
                 loadMyHomework();
+                loadActiveAssignments();
             } else if (tabName === 'leaderboard') {
                 document.getElementById('screen-leaderboard').classList.add('active');
                 document.querySelectorAll('.nav-btn')[2].classList.add('active');
@@ -605,6 +698,7 @@
             if (viewName === 'upload') {
                 document.getElementById('hw-upload').classList.add('active');
                 document.querySelectorAll('.tab-btn')[0].classList.add('active');
+                loadActiveAssignments();
             } else {
                 document.getElementById('hw-archive').classList.add('active');
                 document.querySelectorAll('.tab-btn')[1].classList.add('active');
