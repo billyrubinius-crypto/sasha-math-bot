@@ -558,11 +558,20 @@
                 deadlineMSK = new Date(nowMSK.getTime() + daysUntilMonday * 86400000);
                 deadlineMSK.setHours(0, 0, 0, 0); // Ровно полночь
             } else {
-                // ЕЖЕДНЕВНОЕ: Дедлайн = конец дня задания + 2 минуты льготы
-                // Берем дату из scheduled_date (YYYY-MM-DD)
-                const [year, month, day] = assignment.scheduled_date.split('-').map(Number);
-                deadlineMSK = new Date(year, month - 1, day, 23, 59, 0); // 23:59 в день задания
-                deadlineMSK.setMinutes(deadlineMSK.getMinutes() + 2); // Льгота до 00:01 след. дня
+                // ЕЖЕДНЕВНОЕ: Безопасная обработка даты
+                let dateStr = assignment.scheduled_date;
+                
+                // Если дата пришла как объект Date или с временем, берем только YYYY-MM-DD
+                if (dateStr instanceof Date) {
+                    dateStr = dateStr.toISOString().split('T')[0];
+                } else if (typeof dateStr === 'string' && dateStr.includes('T')) {
+                    dateStr = dateStr.split('T')[0];
+                }
+
+                const [year, month, day] = dateStr.split('-').map(Number);
+                // Создаем дату в локальном времени пользователя, но интерпретируем как МСК
+                deadlineMSK = new Date(year, month - 1, day, 23, 59, 0); 
+                deadlineMSK.setMinutes(deadlineMSK.getMinutes() + 2); 
             }
 
             // Сравниваем московское время с московским дедлайном
