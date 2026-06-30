@@ -283,31 +283,36 @@
         function log(msg) { console.log(msg); const d=document.getElementById('debug'); if(d) d.innerText += msg+'\n'; }
 
         document.addEventListener('DOMContentLoaded', async () => {
-            const tg = window.Telegram.WebApp;
-            tg.ready(); tg.expand();
+            try {
+                const tg = window.Telegram.WebApp;
+                tg.ready(); tg.expand();
 
-            db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            
-            const tgUser = tg.initDataUnsafe?.user;
-            
-            if (tgUser && tgUser.id) {
-                currentUser = tgUser;
-            } else {
-                currentUser = null;
-                document.getElementById('user-name').innerText = 'Ошибка доступа';
-                log('❌ Нет данных пользователя.');
-                return; 
+                db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                
+                const tgUser = tg.initDataUnsafe?.user;
+                
+                if (tgUser && tgUser.id) {
+                    currentUser = tgUser;
+                } else {
+                    currentUser = null;
+                    document.getElementById('user-name').innerText = 'Ошибка доступа';
+                    log('❌ Нет данных пользователя.');
+                    return; 
+                }
+
+                document.getElementById('user-name').innerText = currentUser.first_name;
+                setupAvatar(currentUser);
+                
+                // 1. Активируем задания, если пора
+                await checkAndActivateAssignments();
+                
+                // 2. Загружаем профиль и активные задания
+                await loadProfile();
+                await loadActiveAssignments();
+            } catch (e) {
+                log('❌ КРИТИЧЕСКАЯ ОШИБКА ИНИЦИАЛИЗАЦИИ: ' + e.message);
+                document.getElementById('user-name').innerText = 'Ошибка запуска';
             }
-
-            document.getElementById('user-name').innerText = currentUser.first_name;
-            setupAvatar(currentUser);
-            
-            // 1. Активируем задания, если пора
-            await checkAndActivateAssignments();
-            
-            // 2. Загружаем профиль и активные задания
-            await loadProfile();
-            await loadActiveAssignments();
         });
 
         function setupAvatar(user) {
@@ -424,7 +429,6 @@
             }
         }
 
-        // --- ЗАГРУЗКА АКТИВНЫХ ЗАДАНИЙ (ИСПРАВЛЕНО ДЛЯ ИНДИВИДУАЛЬНЫХ) ---
         // --- ЗАГРУЗКА АКТИВНЫХ ЗАДАНИЙ (ИСПРАВЛЕНО) ---
         async function loadActiveAssignments() {
             const select = document.getElementById('assignment-select');
@@ -432,7 +436,6 @@
             
             try {
                 // Берем ВСЕ задания ученика со статусом 'assigned', у которых activation_status = 'active'
-                // Убираем лишнюю проверку на null, так как поле NOT NULL
                 const { data, error } = await db
                     .from('assignments')
                     .select('*')
@@ -446,7 +449,7 @@
                 activeAssignments = data || [];
                 
                 if (activeAssignments.length === 0) {
-                    select.innerHTML = '<option value="">Нет активных заданий ️</option>';
+                    select.innerHTML = '<option value="">Нет активных заданий 🕊️</option>';
                     select.disabled = true;
                     return;
                 }
@@ -465,6 +468,19 @@
                 log('Ошибка загрузки заданий: ' + e.message);
             }
         }
+
+        // Показывает ссылку и название выбранного задания
+        function showAssignmentDetails() {
+            const select = document.getElementById('assignment-select');
+            const detailsDiv = document.getElementById('assignment-details');
+            const btn = document.getElementById('btn-upload-dz');
+            const assignmentId = select.value;
+            
+            if (!assignmentId) {
+                detailsDiv.style.display = 'none';
+                btn.disabled = true;
+                return;
+            }
             
             const assignment = activeAssignments.find(a => a.id === assignmentId);
             if (assignment) {
