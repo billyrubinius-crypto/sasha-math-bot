@@ -541,15 +541,37 @@
             if (selectedFiles.length === 0) { status.innerText = "⚠️ Выберите фото!"; status.style.color = "#ff9800"; return; }
             
             // Проверка дедлайна (00:02 МСК)
-            const nowUTC = new Date();
-            const deadlineUTC = new Date(nowUTC);
-            deadlineUTC.setUTCHours(21, 2, 0, 0); // 21:02 UTC = 00:02 MSK
-            
-            if (nowUTC > deadlineUTC) {
-                status.innerText = " Дедлайн (00:02 МСК) уже прошел!";
+            const assignment = activeAssignments.find(a => a.id === assignmentId);
+            if (!assignment) return;
+
+            // Получаем текущее время СТРОГО по Москве
+            const nowMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"}));
+            let deadlineMSK;
+
+            if (assignment.type === 'weekly') {
+                // ЕЖЕНЕДЕЛЬНОЕ: Дедлайн всегда понедельник 00:00 МСК
+                // Вычисляем ближайший будущий понедельник
+                const currentDay = nowMSK.getDay(); // 0=Вс, 1=Пн...6=Сб
+                let daysUntilMonday = (1 - currentDay + 7) % 7;
+                if (daysUntilMonday === 0) daysUntilMonday = 7; // Если сегодня Пн, берем следующий
+                
+                deadlineMSK = new Date(nowMSK.getTime() + daysUntilMonday * 86400000);
+                deadlineMSK.setHours(0, 0, 0, 0); // Ровно полночь
+            } else {
+                // ЕЖЕДНЕВНОЕ: Дедлайн = конец дня задания + 2 минуты льготы
+                // Берем дату из scheduled_date (YYYY-MM-DD)
+                const [year, month, day] = assignment.scheduled_date.split('-').map(Number);
+                deadlineMSK = new Date(year, month - 1, day, 23, 59, 0); // 23:59 в день задания
+                deadlineMSK.setMinutes(deadlineMSK.getMinutes() + 2); // Льгота до 00:01 след. дня
+            }
+
+            // Сравниваем московское время с московским дедлайном
+            if (nowMSK > deadlineMSK) {
+                status.innerText = `⏰ Время вышло! Дедлайн: ${deadlineMSK.toLocaleString('ru-RU')} МСК`;
                 status.style.color = "#f44336";
                 return;
             }
+            // ==============================
 
             btn.disabled = true;
             status.innerText = `📤 Загрузка фото...`; 
