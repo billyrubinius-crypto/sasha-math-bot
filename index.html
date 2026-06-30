@@ -210,6 +210,7 @@
                         <option value="">Выбери задание из списка...</option>
                     </select>
                 </div>
+
                 <!-- Карточка с деталями выбранного задания -->
                 <div id="assignment-details" style="display:none; background:var(--tg-bg); border-radius:12px; padding:15px; margin-bottom:15px; border:1px solid rgba(128,128,128,0.2);">
                     <div style="font-weight:bold; margin-bottom:8px; font-size:15px;" id="detail-title"></div>
@@ -259,7 +260,7 @@
             <span class="nav-icon">📚</span> Домашка
         </button>
         <button class="nav-btn" onclick="switchTab('leaderboard')">
-            <span class="nav-icon"></span> Лидеры
+            <span class="nav-icon">🏆</span> Лидеры
         </button>
     </div>
 
@@ -423,18 +424,19 @@
             }
         }
 
-        // --- ЗАГРУЗКА АКТИВНЫХ ЗАДАНИЙ ---
+        // --- ЗАГРУЗКА АКТИВНЫХ ЗАДАНИЙ (ИСПРАВЛЕНО ДЛЯ ИНДИВИДУАЛЬНЫХ) ---
         async function loadActiveAssignments() {
             const select = document.getElementById('assignment-select');
             select.innerHTML = '<option value="">Выбери задание из списка...</option>';
             
             try {
+                // Берем все активные ИЛИ индивидуальные (у них нет scheduled_date)
                 const { data, error } = await db
                     .from('assignments')
                     .select('*')
                     .eq('student_id', currentUser.id)
-                    .eq('activation_status', 'active')
-                    .eq('status', 'assigned') // Только те, что еще не сданы
+                    .eq('status', 'assigned')
+                    .or('activation_status.eq.active,activation_status.is.null') 
                     .order('created_at', { ascending: true });
 
                 if (error) throw error;
@@ -486,11 +488,11 @@
                     linkEl.style.display = 'none';
                 }
                 detailsDiv.style.display = 'block';
-                btn.disabled = false; // Разблокируем кнопку загрузки
+                btn.disabled = false;
             }
         }
 
-        // --- ЗАГРУЗКА ФОТО И ДЗ (НОВАЯ ЛОГИКА) ---
+        // --- ЗАГРУЗКА ФОТО И ДЗ (ИСПРАВЛЕННАЯ ЛОГИКА ДЕДЛАЙНОВ) ---
         function handleFileSelect(event) {
             const files = Array.from(event.target.files);
             if (files.length === 0) return;
@@ -540,7 +542,7 @@
             if (!assignmentId) { status.innerText = "⚠️ Выбери задание из списка!"; status.style.color = "#ff9800"; return; }
             if (selectedFiles.length === 0) { status.innerText = "⚠️ Выберите фото!"; status.style.color = "#ff9800"; return; }
             
-            // Проверка дедлайна (00:02 МСК)
+            // === НОВАЯ ЛОГИКА ДЕДЛАЙНОВ ===
             const assignment = activeAssignments.find(a => a.id === assignmentId);
             if (!assignment) return;
 
@@ -550,18 +552,16 @@
 
             if (assignment.type === 'weekly') {
                 // ЕЖЕНЕДЕЛЬНОЕ: Дедлайн всегда понедельник 00:00 МСК
-                // Вычисляем ближайший будущий понедельник
                 const currentDay = nowMSK.getDay(); // 0=Вс, 1=Пн...6=Сб
                 let daysUntilMonday = (1 - currentDay + 7) % 7;
-                if (daysUntilMonday === 0) daysUntilMonday = 7; // Если сегодня Пн, берем следующий
+                if (daysUntilMonday === 0) daysUntilMonday = 7; 
                 
                 deadlineMSK = new Date(nowMSK.getTime() + daysUntilMonday * 86400000);
-                deadlineMSK.setHours(0, 0, 0, 0); // Ровно полночь
+                deadlineMSK.setHours(0, 0, 0, 0);
             } else {
                 // ЕЖЕДНЕВНОЕ: Безопасная обработка даты
                 let dateStr = assignment.scheduled_date;
                 
-                // Если дата пришла как объект Date или с временем, берем только YYYY-MM-DD
                 if (dateStr instanceof Date) {
                     dateStr = dateStr.toISOString().split('T')[0];
                 } else if (typeof dateStr === 'string' && dateStr.includes('T')) {
@@ -569,12 +569,10 @@
                 }
 
                 const [year, month, day] = dateStr.split('-').map(Number);
-                // Создаем дату в локальном времени пользователя, но интерпретируем как МСК
                 deadlineMSK = new Date(year, month - 1, day, 23, 59, 0); 
                 deadlineMSK.setMinutes(deadlineMSK.getMinutes() + 2); 
             }
 
-            // Сравниваем московское время с московским дедлайном
             if (nowMSK > deadlineMSK) {
                 status.innerText = `⏰ Время вышло! Дедлайн: ${deadlineMSK.toLocaleString('ru-RU')} МСК`;
                 status.style.color = "#f44336";
@@ -627,11 +625,11 @@
                 document.getElementById('upload-area').querySelector('.upload-text').innerText = 'Нажми, чтобы выбрать фото (можно несколько)';
                 document.getElementById('upload-area').querySelector('.upload-icon').style.display = 'block';
                 select.value = "";
-                showAssignmentDetails(); // Скрываем детали
+                showAssignmentDetails();
                 
                 await loadProfile();
                 loadMyHomework();
-                loadActiveAssignments(); // Обновляем список, чтобы скрыть сданное
+                loadActiveAssignments();
 
             } catch (e) {
                 status.innerText = " Ошибка: " + e.message;
@@ -650,7 +648,7 @@
                     .from('assignments')
                     .select('*')
                     .eq('student_id', currentUser.id)
-                    .neq('status', 'assigned') // Показываем только сданные или проверенные
+                    .neq('status', 'assigned')
                     .order('submitted_at', { ascending: false });
                 
                 if (error) throw error;
@@ -725,8 +723,8 @@
                     li.className = `lb-item ${isMe ? 'lb-me' : ''}`;
                     
                     let rankDisplay = `#${index + 1}`;
-                    if (index === 0) rankDisplay = '';
-                    if (index === 1) rankDisplay = '';
+                    if (index === 0) rankDisplay = '🥇';
+                    if (index === 1) rankDisplay = '🥈';
                     if (index === 2) rankDisplay = '🥉';
 
                     li.innerHTML = `
