@@ -308,6 +308,15 @@
         let db, currentSubmissionId = null, selectedPenalty = -20, studentsList = [];
         let currentCheckView = 'pending'; 
 
+        // Переменные для навигации по фото внутри модального окна
+        let reviewPhotos = [];
+        let reviewPhotoIndex = 0;
+
+        // Переменные для зума
+        let lbScale = 1;
+        let initialDist = 0;
+        let initialScale = 1;
+
         // Инициализация
         document.addEventListener('DOMContentLoaded', () => {
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -332,7 +341,65 @@
             const nextMonday = new Date();
             nextMonday.setDate(nextMonday.getDate() + (1 + 7 - nextMonday.getDay()) % 7 || 7);
             document.getElementById('activation-date').value = nextMonday.toISOString().split('T')[0];
+
+            // === ЛОГИКА ЗУМА ДЛЯ LIGHTBOX ===
+            const lbImg = document.getElementById('lb-img');
+            const lbWrapper = document.getElementById('lightbox');
+
+            // 1. Зум колесиком мыши (ПК)
+            lbWrapper.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                applyZoom(delta);
+            }, { passive: false });
+
+            // 2. Зум щипком (Телефон)
+            lbWrapper.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault(); // Блокируем стандартный зум браузера
+                    initialDist = Math.hypot(
+                        e.touches[0].pageX - e.touches[1].pageX,
+                        e.touches[0].pageY - e.touches[1].pageY
+                    );
+                    initialScale = lbScale;
+                }
+            }, { passive: false });
+
+            lbWrapper.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    const dist = Math.hypot(
+                        e.touches[0].pageX - e.touches[1].pageX,
+                        e.touches[0].pageY - e.touches[1].pageY
+                    );
+                    const scaleFactor = dist / initialDist;
+                    applyZoom(scaleFactor / (initialScale || 1)); // Нормализуем относительно начального масштаба
+                }
+            }, { passive: false });
         });
+
+        // Функция применения зума с ограничениями
+        function applyZoom(factor) {
+            lbScale *= factor;
+            // Ограничиваем зум от 1x до 5x
+            lbScale = Math.min(Math.max(lbScale, 1), 5);
+            updateLightboxTransform();
+        }
+
+        // Сброс зума к исходному состоянию
+        function resetZoom() {
+            lbScale = 1;
+            updateLightboxTransform();
+        }
+
+        // Применение трансформации к изображению
+        function updateLightboxTransform() {
+            const img = document.getElementById('lb-img');
+            if (img) {
+                img.style.transform = `scale(${lbScale})`;
+                img.style.transition = lbScale === 1 ? 'transform 0.2s ease' : 'none';
+            }
+        }
 
         function checkPass() {
             if (document.getElementById('pass').value === PASS) {
@@ -419,10 +486,6 @@
             });
         }
 
-        // Переменные для навигации по фото внутри модального окна
-        let reviewPhotos = [];
-        let reviewPhotoIndex = 0;
-
         function openReview(sub) {
             currentSubmissionId = sub.id;
             document.getElementById('rev-student').innerText = sub.students?.name || 'Unknown';
@@ -454,7 +517,6 @@
             currentSubmissionId = null;
         }
 
-        // Функция обновления отображения фото и кнопок навигации
         function updateReviewPhotoDisplay() {
             const img = document.getElementById('rev-photo');
             const prevBtn = document.getElementById('prev-photo-btn');
@@ -482,7 +544,6 @@
             }
         }
 
-        // Листание фото влево/вправо
         function changeReviewPhoto(dir) {
             reviewPhotoIndex += dir;
             if (reviewPhotoIndex < 0) reviewPhotoIndex = 0;
@@ -490,16 +551,18 @@
             updateReviewPhotoDisplay();
         }
 
-        // Обновленная функция открытия Lightbox (берет текущее фото из навигации)
+        // Обновленная функция открытия Lightbox со сбросом зума
         function openLightbox() {
             if (reviewPhotos.length > 0) {
                 document.getElementById('lb-img').src = reviewPhotos[reviewPhotoIndex];
+                resetZoom(); // Сбрасываем масштаб при открытии
                 document.getElementById('lightbox').classList.add('active');
             }
         }
 
         function closeLightbox() {
             document.getElementById('lightbox').classList.remove('active');
+            resetZoom(); // Сбрасываем масштаб при закрытии
         }
 
         async function submitReview(status) {
