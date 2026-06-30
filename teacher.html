@@ -2,524 +2,502 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Sasha Math - Teacher Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background: #f5f5f5; overflow: hidden; }
+        :root { --primary: #2481cc; --bg: #f5f5f5; --success: #28a745; --danger: #dc3545; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: var(--bg); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
         /* Экран входа */
-        #login-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .login-box { background: white; padding: 30px; border-radius: 12px; text-align: center; width: 300px; }
-        .login-box input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; }
-        .login-box button { width: 100%; padding: 10px; background: #2481cc; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        #login-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center; z-index: 3000; }
+        .login-box { background: white; padding: 30px; border-radius: 16px; text-align: center; width: 85%; max-width: 320px; }
+        .login-box input { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+        .login-box button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
 
-        /* Основной интерфейс */
-        #app-screen { display: none; width: 100%; height: 100%; }
-        
-        /* Сайдбар */
-        .sidebar { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 10; }
-        .sidebar-tabs { display: flex; border-bottom: 1px solid #eee; }
-        .sidebar-tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: 600; color: #666; border-bottom: 2px solid transparent; user-select: none; }
-        .sidebar-tab.active { color: #2481cc; border-bottom-color: #2481cc; background: #f9f9f9; }
-        
-        .submissions-list { flex: 1; overflow-y: auto; }
-        .submission-item { padding: 15px 20px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.2s; }
-        .submission-item:hover { background: #f9f9f9; }
-        .submission-item.active { background: #e6f2ff; border-left: 4px solid #2481cc; }
-        .sub-name { font-weight: bold; margin-bottom: 5px; }
-        .sub-meta { font-size: 12px; color: #666; }
-        .status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; margin-top: 5px; }
-        .status-pending { background: #fff3cd; color: #856404; }
-        .status-approved { background: #d4edda; color: #155724; }
-        .status-rejected { background: #f8d7da; color: #721c24; }
+        /* Верхние табы */
+        .top-tabs { display: flex; background: white; border-bottom: 1px solid #eee; flex-shrink: 0; }
+        .tab-btn { flex: 1; padding: 15px; text-align: center; font-weight: 600; color: #999; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
 
-        /* Основная область */
-        .main-area { flex: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; position: relative; }
-        
-        /* Контейнер фото (миниатюра) */
-        .photo-container { 
-            flex: 1; background: #333; border-radius: 12px; overflow: hidden; 
-            display: flex; align-items: center; justify-content: center; 
-            min-height: 400px; margin-bottom: 20px; position: relative; cursor: zoom-in;
-        }
-        .photo-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
-        .zoom-hint { 
-            position: absolute; bottom: 15px; right: 15px; background: rgba(0,0,0,0.6); 
-            color: white; padding: 5px 10px; border-radius: 6px; font-size: 12px; pointer-events: none;
-        }
+        /* Контейнеры контента */
+        .content-area { flex: 1; overflow-y: auto; padding: 15px; display: none; }
+        .content-area.active { display: block; }
 
-        /* Навигация по фото (в миниатюре) */
-        .gallery-nav-mini { 
-            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); 
-            background: rgba(0,0,0,0.7); color: white; padding: 6px 12px; border-radius: 20px; 
-            display: flex; align-items: center; gap: 10px; font-size: 13px;
-        }
-        .gallery-btn-mini { background: none; border: none; color: white; font-size: 16px; cursor: pointer; padding: 0 5px; }
-        .gallery-btn-mini:disabled { opacity: 0.3; cursor: default; }
+        /* Стили для планирования недели */
+        .week-planner { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .day-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .day-label { width: 40px; font-weight: bold; font-size: 14px; }
+        .day-inputs { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+        .day-inputs input { padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; width: 100%; }
+        .btn-primary { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 10px; }
+        .btn-secondary { background: #6c757d; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 10px; }
 
-        /* Панель действий */
-        .action-panel { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .action-row { display: flex; gap: 10px; margin-bottom: 15px; }
-        .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: opacity 0.2s; }
-        .btn:hover { opacity: 0.9; }
-        .btn-approve { background: #28a745; color: white; }
-        .btn-reject { background: #dc3545; color: white; }
-        textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; resize: vertical; min-height: 80px; box-sizing: border-box; font-family: inherit; }
-        .empty-state { text-align: center; color: #999; margin-top: 100px; }
-        .readonly-info { font-size: 13px; color: #666; margin-top: 10px; font-style: italic; }
+        /* Список работ для проверки */
+        .submission-card { 
+            background: white; border-radius: 12px; padding: 15px; margin-bottom: 10px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); cursor: pointer; transition: transform 0.1s;
+        }
+        .submission-card:active { transform: scale(0.98); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .student-name { font-weight: bold; font-size: 16px; }
+        .badge { padding: 3px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+        .badge-daily { background: #e3f2fd; color: #1565c0; }
+        .badge-weekly { background: #f3e5f5; color: #7b1fa2; }
+        .badge-individual { background: #fff3e0; color: #ef6c00; }
+        .card-meta { font-size: 12px; color: #666; margin-bottom: 5px; }
+        .card-link { color: var(--primary); font-size: 12px; text-decoration: none; display: inline-block; margin-bottom: 8px; word-break: break-all; }
 
-        /* === LIGHTBOX (Полноэкранный просмотр) === */
-        #lightbox { 
-            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); 
-            z-index: 2000; flex-direction: column; align-items: center; justify-content: center;
+        /* Модальное окно проверки */
+        #review-modal { 
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); 
+            z-index: 2000; align-items: center; justify-content: center; padding: 20px;
         }
-        #lightbox.active { display: flex; }
-        
-        .lightbox-toolbar { 
-            position: absolute; top: 20px; right: 20px; display: flex; gap: 10px; z-index: 2001;
+        #review-modal.active { display: flex; }
+        .modal-content { 
+            background: white; border-radius: 16px; width: 100%; max-width: 500px; 
+            max-height: 90vh; overflow-y: auto; padding: 20px; position: relative;
         }
-        .lb-btn { 
-            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); 
-            color: white; width: 40px; height: 40px; border-radius: 8px; cursor: pointer; 
-            display: flex; align-items: center; justify-content: center; font-size: 18px;
-            backdrop-filter: blur(5px); transition: background 0.2s;
-        }
-        .lb-btn:hover { background: rgba(255,255,255,0.2); }
-        .lb-btn.close { background: rgba(220, 53, 69, 0.8); border-color: transparent; }
-        .lb-btn.close:hover { background: rgba(220, 53, 69, 1); }
+        .close-modal { position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666; }
+        .review-photo { width: 100%; border-radius: 8px; margin: 15px 0; cursor: zoom-in; background: #eee; min-height: 200px; object-fit: contain; }
+        .action-buttons { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-success { background: var(--success); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; flex: 1; cursor: pointer; }
+        .btn-danger { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; flex: 1; cursor: pointer; }
+        textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; resize: vertical; min-height: 80px; font-family: inherit; margin-top: 10px; }
 
-        .lightbox-image-wrapper { 
-            width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
-            overflow: hidden; position: relative; cursor: grab;
-        }
-        .lightbox-image-wrapper:active { cursor: grabbing; }
-        
-        #lightbox-img { 
-            max-width: 90%; max-height: 90%; object-fit: contain; 
-            transform-origin: center center; transition: transform 0.1s ease-out;
-            user-select: none; -webkit-user-drag: none;
-        }
+        /* Модальное окно штрафа */
+        #penalty-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2500; align-items: center; justify-content: center; padding: 20px; }
+        #penalty-modal.active { display: flex; }
+        .penalty-options { display: flex; gap: 10px; margin: 15px 0; justify-content: center; }
+        .penalty-btn { padding: 10px 15px; border: 2px solid var(--danger); background: white; color: var(--danger); border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .penalty-btn.selected { background: var(--danger); color: white; }
+        .warning-text { color: var(--danger); font-size: 13px; margin-top: 10px; text-align: center; }
 
-        .lightbox-counter { 
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); 
-            background: rgba(0,0,0,0.6); color: white; padding: 8px 16px; border-radius: 20px; 
-            font-size: 14px; display: flex; align-items: center; gap: 15px;
-        }
-        .lb-nav-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; }
-        .lb-nav-btn:disabled { opacity: 0.3; cursor: default; }
+        /* Lightbox для фото */
+        #lightbox { display: none; position: fixed; inset: 0; background: black; z-index: 3000; touch-action: none; }
+        #lightbox.active { display: block; }
+        #lb-img { width: 100%; height: 100%; object-fit: contain; transform-origin: center center; }
+        .lb-close { position: absolute; top: 20px; right: 20px; color: white; font-size: 30px; background: rgba(0,0,0,0.5); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; }
 
-        .lightbox-zoom-controls { 
-            position: absolute; bottom: 30px; right: 30px; display: flex; gap: 5px;
+        /* Адаптив для мобильных */
+        @media (max-width: 600px) {
+            .day-row { flex-direction: column; align-items: stretch; }
+            .day-label { width: 100%; margin-bottom: 5px; }
+            .action-buttons { flex-direction: column; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Экран входа -->
+    <!-- Вход -->
     <div id="login-screen">
         <div class="login-box">
-            <h2>👨‍🏫 Учительская</h2>
-            <p style="font-size: 13px; color: #666;">Введите пароль для доступа</p>
-            <input type="password" id="password-input" placeholder="Пароль">
-            <button onclick="checkPassword()">Войти</button>
-            <p id="login-error" style="color: red; font-size: 12px; display: none;">Неверный пароль!</p>
+            <h2>👨‍ Учительская</h2>
+            <input type="password" id="pass" placeholder="Пароль">
+            <button onclick="checkPass()">Войти</button>
+            <p id="err" style="color:red; display:none; margin-top:10px;">Неверно!</p>
         </div>
     </div>
 
-    <!-- Основной экран -->
-    <div id="app-screen">
-        <div class="sidebar">
-            <div class="sidebar-tabs">
-                <div class="sidebar-tab active" onclick="switchTeacherTab('pending', this)">📥 Новые</div>
-                <div class="sidebar-tab" onclick="switchTeacherTab('archive', this)"> Архив</div>
-            </div>
-            <div class="submissions-list" id="submissions-list">
-                <div style="padding: 20px; text-align: center; color: #999;">Загрузка...</div>
-            </div>
+    <!-- Табы навигации -->
+    <div class="top-tabs">
+        <div class="tab-btn active" onclick="switchTab('check', this)">✅ Проверка</div>
+        <div class="tab-btn" onclick="switchTab('plan', this)"> Планирование</div>
+    </div>
+
+    <!-- Вкладка проверки -->
+    <div id="tab-check" class="content-area active">
+        <div id="submissions-list">
+            <div style="text-align:center; padding:40px; color:#999;">Загрузка работ...</div>
         </div>
-        
-        <div class="main-area">
-            <div id="viewer-content" style="display: none; height: 100%; flex-direction: column;">
-                <div class="photo-container" onclick="openLightbox()">
-                    <img id="hw-photo" src="" alt="Домашнее задание">
-                    <div class="zoom-hint">🔍 Нажми для просмотра</div>
-                    
-                    <!-- Навигация в миниатюре -->
-                    <div id="mini-gallery-nav" class="gallery-nav-mini" style="display:none;">
-                        <button class="gallery-btn-mini" id="mini-prev" onclick="event.stopPropagation(); changePhoto(-1)">‹</button>
-                        <span id="mini-counter">1 / 1</span>
-                        <button class="gallery-btn-mini" id="mini-next" onclick="event.stopPropagation(); changePhoto(1)">›</button>
-                    </div>
-                </div>
-                
-                <div class="action-panel">
-                    <div style="margin-bottom: 10px; font-weight: bold;" id="student-info">Ученик: ...</div>
-                    <div id="action-buttons" class="action-row">
-                        <button class="btn btn-approve" onclick="processSubmission('approved')">✅ Принять (+10)</button>
-                        <button class="btn btn-reject" onclick="processSubmission('rejected')">❌ Вернуть</button>
-                    </div>
-                    <textarea id="teacher-comment" placeholder="Комментарий ученику"></textarea>
-                    <div id="readonly-msg" class="readonly-info" style="display:none;">Эта работа уже проверена. Вы можете изменить комментарий.</div>
-                    <button class="btn" style="background:#6c757d; color:white; margin-top:10px; width:100%; display:none;" onclick="processSubmission(null)" id="btn-save-comment">💾 Сохранить комментарий</button>
-                </div>
+    </div>
+
+    <!-- Вкладка планирования -->
+    <div id="tab-plan" class="content-area">
+        <div class="week-planner">
+            <h3 style="margin-top:0">🗓️ Запланировать следующую неделю</h3>
+            <p style="font-size:13px; color:#666; margin-bottom:15px;">Задания станут активными автоматически в 00:00 МСК указанной даты.</p>
+            
+            <div id="days-container"></div>
+            
+            <div style="margin-top:20px; padding-top:15px; border-top:1px solid #eee;">
+                <label style="font-weight:bold; display:block; margin-bottom:5px;">Дата активации:</label>
+                <input type="date" id="activation-date" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:16px;">
+            </div>
+
+            <button class="btn-primary" onclick="scheduleWeek()">🚀 Запланировать неделю</button>
+            <button class="btn-secondary" onclick="saveDraft()">💾 Сохранить как черновик</button>
+        </div>
+
+        <div class="week-planner">
+            <h3 style="margin-top:0">🎯 Индивидуальное задание</h3>
+            <select id="indiv-student" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:6px;"></select>
+            <input type="text" id="indiv-title" placeholder="Название (например: Тригонометрия №5-10)" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:6px;">
+            <input type="url" id="indiv-url" placeholder="Ссылка на задачу" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:6px;">
+            <textarea id="indiv-comment" placeholder="Комментарий ученику" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; min-height:60px;"></textarea>
+            <button class="btn-primary" onclick="assignIndividual()" style="margin-top:10px;">Назначить индивидуально</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно проверки -->
+    <div id="review-modal">
+        <div class="modal-content">
+            <button class="close-modal" onclick="closeReview()">✕</button>
+            <h3 id="rev-student" style="margin-top:0"></h3>
+            <div id="rev-type" class="badge" style="margin-bottom:10px; display:inline-block;"></div>
+            <div id="rev-comment-teacher" style="font-size:13px; color:#666; margin-bottom:10px; font-style:italic;"></div>
+            <a id="rev-link" href="#" target="_blank" class="card-link">🔗 Открыть исходник задачи</a>
+            
+            <img id="rev-photo" class="review-photo" src="" onclick="openLightbox(this.src)">
+            
+            <textarea id="rev-feedback" placeholder="Комментарий при проверке..."></textarea>
+            
+            <div class="action-buttons">
+                <button class="btn-success" onclick="submitReview('approved')">✅ Принять</button>
+                <button class="btn-danger" onclick="submitReview('rejected')">❌ Вернуть</button>
+            </div>
+            <button class="btn-secondary" style="margin-top:10px;" onclick="showPenaltyModal()">⚠️ Оштрафовать</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно штрафа -->
+    <div id="penalty-modal">
+        <div class="modal-content" style="max-width:400px;">
+            <button class="close-modal" onclick="closePenalty()">✕</button>
+            <h3 style="margin-top:0; text-align:center;">⚠️ Списать хуиконы</h3>
+            <p style="text-align:center; font-size:14px; color:#666;">Текущий баланс: <b id="pen-balance">0</b></p>
+            
+            <div class="penalty-options">
+                <button class="penalty-btn" onclick="selectPenalty(-5)">-5</button>
+                <button class="penalty-btn" onclick="selectPenalty(-10)">-10</button>
+                <button class="penalty-btn selected" onclick="selectPenalty(-20)">-20</button>
+                <button class="penalty-btn" onclick="selectPenalty(-50)">-50</button>
             </div>
             
-            <div id="empty-state" class="empty-state">
-                Выберите работу слева для просмотра
-            </div>
+            <textarea id="pen-reason" placeholder="Обязательно укажите причину штрафа..." style="min-height:60px;"></textarea>
+            <p id="pen-warning" class="warning-text"></p>
+            
+            <button class="btn-danger" style="width:100%; margin-top:15px;" onclick="applyPenalty()">Списать хуиконы</button>
         </div>
     </div>
 
-    <!-- LIGHTBOX (Полноэкранный просмотр) -->
-    <div id="lightbox">
-        <div class="lightbox-toolbar">
-            <button class="lb-btn" onclick="zoomLightbox(0.5)" title="Уменьшить">−</button>
-            <button class="lb-btn" onclick="resetZoom()" title="Сбросить масштаб">⟲</button>
-            <button class="lb-btn" onclick="zoomLightbox(2)" title="Увеличить">+</button>
-            <button class="lb-btn close" onclick="closeLightbox()" title="Закрыть (Esc)">✕</button>
-        </div>
-        
-        <div class="lightbox-image-wrapper" id="lb-wrapper">
-            <img id="lightbox-img" src="" alt="">
-        </div>
-        
-        <div class="lightbox-counter" id="lb-counter" style="display:none;">
-            <button class="lb-nav-btn" id="lb-prev" onclick="changePhoto(-1)">‹</button>
-            <span id="lb-count-text">1 / 1</span>
-            <button class="lb-nav-btn" id="lb-next" onclick="changePhoto(1)">›</button>
-        </div>
-        
-        <div class="lightbox-zoom-controls">
-            <button class="lb-btn" onclick="zoomLightbox(0.5)">−</button>
-            <button class="lb-btn" onclick="resetZoom()">⟲</button>
-            <button class="lb-btn" onclick="zoomLightbox(2)">+</button>
-        </div>
+    <!-- Lightbox -->
+    <div id="lightbox" onclick="closeLightbox()">
+        <button class="lb-close">✕</button>
+        <img id="lb-img" src="" onclick="event.stopPropagation()">
     </div>
 
     <script>
         const SUPABASE_URL = 'https://lchsrbwfmhblitxdmsfc.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_rB0_CRkGuLwwyRenr8zHBA_Cf327mSZ';
-        const TEACHER_PASSWORD = 'sasha2024'; 
+        const PASS = 'sasha2024';
 
-        let db = null;
-        let currentSubmissionId = null;
-        let currentView = 'pending'; 
-        let submissionsCache = [];
-        let currentPhotos = [];
-        let currentPhotoIndex = 0;
+        let db, currentSubmissionId = null, selectedPenalty = -20, studentsList = [];
 
-        // Переменные для Lightbox
-        let lbScale = 1;
-        let lbTranslateX = 0;
-        let lbTranslateY = 0;
-        let isDragging = false;
-        let startX, startY;
-
+        // Инициализация
         document.addEventListener('DOMContentLoaded', () => {
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            if (sessionStorage.getItem('teacher_auth') === 'true') showApp();
+            if (sessionStorage.getItem('auth')) showApp();
             
-            // Обработчик клавиш для Lightbox
-            document.addEventListener('keydown', (e) => {
-                if (document.getElementById('lightbox').classList.contains('active')) {
-                    if (e.key === 'Escape') closeLightbox();
-                    if (e.key === 'ArrowLeft') changePhoto(-1);
-                    if (e.key === 'ArrowRight') changePhoto(1);
-                    if (e.key === '+' || e.key === '=') zoomLightbox(1.5);
-                    if (e.key === '-') zoomLightbox(0.66);
-                    if (e.key === '0') resetZoom();
-                }
+            // Генерация полей для дней недели
+            const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+            const container = document.getElementById('days-container');
+            days.forEach((day, i) => {
+                container.innerHTML += `
+                    <div class="day-row">
+                        <div class="day-label">${day}</div>
+                        <div class="day-inputs">
+                            <input type="text" id="day-title-${i}" placeholder="Название задания">
+                            <input type="url" id="day-url-${i}" placeholder="Ссылка на РешуЕГЭ">
+                        </div>
+                    </div>`;
             });
 
-            // Зум колесиком мыши в Lightbox
-            document.getElementById('lb-wrapper').addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const factor = e.deltaY < 0 ? 1.2 : 0.8;
-                zoomLightbox(factor);
-            }, { passive: false });
-
-            // Drag & Drop в Lightbox
-            const wrapper = document.getElementById('lb-wrapper');
-            wrapper.addEventListener('mousedown', (e) => {
-                if (lbScale > 1) {
-                    isDragging = true;
-                    startX = e.clientX - lbTranslateX;
-                    startY = e.clientY - lbTranslateY;
-                    wrapper.style.cursor = 'grabbing';
-                }
-            });
-            document.addEventListener('mousemove', (e) => {
-                if (!isDragging) return;
-                lbTranslateX = e.clientX - startX;
-                lbTranslateY = e.clientY - startY;
-                updateLightboxTransform();
-            });
-            document.addEventListener('mouseup', () => {
-                isDragging = false;
-                document.getElementById('lb-wrapper').style.cursor = lbScale > 1 ? 'grab' : 'default';
-            });
+            // Установка даты активации по умолчанию (следующий понедельник)
+            const nextMonday = new Date();
+            nextMonday.setDate(nextMonday.getDate() + (1 + 7 - nextMonday.getDay()) % 7 || 7);
+            document.getElementById('activation-date').value = nextMonday.toISOString().split('T')[0];
         });
 
-        function checkPassword() {
-            if (document.getElementById('password-input').value === TEACHER_PASSWORD) {
-                sessionStorage.setItem('teacher_auth', 'true');
+        function checkPass() {
+            if (document.getElementById('pass').value === PASS) {
+                sessionStorage.setItem('auth', '1');
                 showApp();
-            } else {
-                document.getElementById('login-error').style.display = 'block';
-            }
+            } else document.getElementById('err').style.display = 'block';
         }
 
-        function showApp() {
+        async function showApp() {
             document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('app-screen').style.display = 'flex';
+            await loadStudents();
             loadSubmissions();
         }
 
-        function switchTeacherTab(view, element) {
-            currentView = view;
-            document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
-            element.classList.add('active');
-            loadSubmissions();
+        function switchTab(tab, el) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.content-area').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            if (tab === 'check') loadSubmissions();
+        }
+
+        async function loadStudents() {
+            const { data } = await db.from('students').select('telegram_id, name');
+            studentsList = data || [];
+            const select = document.getElementById('indiv-student');
+            select.innerHTML = '<option value="">Выберите ученика</option>';
+            studentsList.forEach(s => {
+                select.innerHTML += `<option value="${s.telegram_id}">${s.name}</option>`;
+            });
         }
 
         async function loadSubmissions() {
             const list = document.getElementById('submissions-list');
-            list.innerHTML = '<div style="padding:20px; text-align:center;">Загрузка...</div>';
+            list.innerHTML = '<div style="text-align:center; padding:40px;">Загрузка...</div>';
             
-            try {
-                let query = db.from('homework_submissions').select('*, students(name)').order('created_at', { ascending: false });
+            // Загружаем только сданные работы, которые ждут проверки
+            const { data, error } = await db
+                .from('assignments')
+                .select('*, students(name)')
+                .eq('status', 'submitted')
+                .order('submitted_at', { ascending: false });
                 
-                if (currentView === 'pending') {
-                    query = query.eq('status', 'pending');
-                } else {
-                    query = query.neq('status', 'pending');
-                }
-                
-                const { data, error } = await query;
-                if (error) throw error;
-                
-                submissionsCache = data || [];
-                renderList();
-                
-            } catch (e) {
-                list.innerHTML = `<div style="padding:20px; color:red;">Ошибка: ${e.message}</div>`;
-            }
-        }
-
-        function renderList() {
-            const list = document.getElementById('submissions-list');
-            if (submissionsCache.length === 0) {
-                list.innerHTML = `<div style="padding:20px; text-align:center; color:#999;">
-                    ${currentView === 'pending' ? 'Нет новых работ 🎉' : 'Архив пуст'}
-                </div>`;
-                return;
-            }
+            if (error) return list.innerHTML = `<div style="color:red; padding:20px">${error.message}</div>`;
+            
+            if (!data.length) return list.innerHTML = '<div style="text-align:center; padding:40px; color:#999">Нет работ на проверку 🎉</div>';
             
             list.innerHTML = '';
-            submissionsCache.forEach(sub => {
-                const div = document.createElement('div');
-                div.className = `submission-item ${currentSubmissionId === sub.id ? 'active' : ''}`;
-                div.onclick = () => selectSubmission(sub);
+            data.forEach(sub => {
+                const card = document.createElement('div');
+                card.className = 'submission-card';
+                card.onclick = () => openReview(sub);
                 
-                const date = new Date(sub.created_at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+                const typeLabels = { daily: 'Ежедневное', weekly: 'Еженедельное', individual: 'Индивидуальное' };
+                const badgeClass = `badge-${sub.type}`;
                 
-                div.innerHTML = `
-                    <div class="sub-name">${sub.students?.name || 'Unknown'}</div>
-                    <div class="sub-meta">Вариант №${sub.variant_number} • ${date}</div>
-                    <span class="status-badge status-${sub.status}">${getStatusText(sub.status)}</span>
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="student-name">${sub.students?.name || 'Unknown'}</span>
+                        <span class="badge ${badgeClass}">${typeLabels[sub.type]}</span>
+                    </div>
+                    <div class="card-meta">${sub.title || 'Без названия'} • ${new Date(sub.submitted_at).toLocaleString('ru')}</div>
+                    ${sub.content_url ? `<a href="${sub.content_url}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
                 `;
-                list.appendChild(div);
+                list.appendChild(card);
             });
         }
 
-        function getStatusText(status) {
-            const map = { 'pending': 'На проверке', 'approved': 'Принято', 'rejected': 'Возврат' };
-            return map[status] || status;
-        }
-
-        function selectSubmission(sub) {
+        function openReview(sub) {
             currentSubmissionId = sub.id;
-            renderList();
+            document.getElementById('rev-student').innerText = sub.students?.name || 'Unknown';
             
-            document.getElementById('empty-state').style.display = 'none';
-            document.getElementById('viewer-content').style.display = 'flex';
+            const typeLabels = { daily: 'Ежедневное', weekly: 'Еженедельное', individual: 'Индивидуальное' };
+            const badge = document.getElementById('rev-type');
+            badge.innerText = typeLabels[sub.type];
+            badge.className = `badge badge-${sub.type}`;
             
-            document.getElementById('student-info').innerText = `Ученик: ${sub.students?.name || 'Unknown'} (ID: ${sub.student_id})`;
-            document.getElementById('teacher-comment').value = sub.teacher_comment || '';
+            document.getElementById('rev-comment-teacher').innerText = sub.teacher_comment || 'Нет комментария от учителя';
+            document.getElementById('rev-link').href = sub.content_url || '#';
+            document.getElementById('rev-link').style.display = sub.content_url ? 'inline-block' : 'none';
+            document.getElementById('rev-photo').src = JSON.parse(sub.photo_url)[0] || sub.photo_url;
+            document.getElementById('rev-feedback').value = sub.teacher_feedback || '';
             
-            // Обработка фото
-            try {
-                currentPhotos = JSON.parse(sub.photo_url);
-                if (!Array.isArray(currentPhotos)) currentPhotos = [currentPhotos];
-            } catch(e) {
-                currentPhotos = [sub.photo_url];
-            }
-            
-            currentPhotoIndex = 0;
-            updateGallery();
-            
-            const isPending = sub.status === 'pending';
-            document.getElementById('action-buttons').style.display = isPending ? 'flex' : 'none';
-            document.getElementById('readonly-msg').style.display = isPending ? 'none' : 'block';
-            document.getElementById('btn-save-comment').style.display = isPending ? 'none' : 'block';
+            document.getElementById('review-modal').classList.add('active');
         }
 
-        function updateGallery() {
-            const img = document.getElementById('hw-photo');
-            const miniNav = document.getElementById('mini-gallery-nav');
-            const miniCounter = document.getElementById('mini-counter');
-            const miniPrev = document.getElementById('mini-prev');
-            const miniNext = document.getElementById('mini-next');
-            
-            img.src = currentPhotos[currentPhotoIndex];
-            
-            if (currentPhotos.length > 1) {
-                miniNav.style.display = 'flex';
-                miniCounter.innerText = `${currentPhotoIndex + 1} / ${currentPhotos.length}`;
-                miniPrev.disabled = currentPhotoIndex === 0;
-                miniNext.disabled = currentPhotoIndex === currentPhotos.length - 1;
-            } else {
-                miniNav.style.display = 'none';
-            }
+        function closeReview() {
+            document.getElementById('review-modal').classList.remove('active');
+            currentSubmissionId = null;
         }
 
-        function changePhoto(dir) {
-            currentPhotoIndex += dir;
-            if (currentPhotoIndex < 0) currentPhotoIndex = 0;
-            if (currentPhotoIndex >= currentPhotos.length) currentPhotoIndex = currentPhotos.length - 1;
-            updateGallery();
-            updateLightboxImage();
-        }
-
-        // === LIGHTBOX ФУНКЦИИ ===
-        function openLightbox() {
-            const lb = document.getElementById('lightbox');
-            const lbImg = document.getElementById('lightbox-img');
-            const lbCounter = document.getElementById('lb-counter');
-            
-            lbImg.src = currentPhotos[currentPhotoIndex];
-            resetZoom();
-            
-            if (currentPhotos.length > 1) {
-                lbCounter.style.display = 'flex';
-                updateLightboxCounter();
-            } else {
-                lbCounter.style.display = 'none';
-            }
-            
-            lb.classList.add('active');
-        }
-
-        function closeLightbox() {
-            document.getElementById('lightbox').classList.remove('active');
-            resetZoom();
-        }
-
-        function updateLightboxImage() {
-            const lbImg = document.getElementById('lightbox-img');
-            lbImg.src = currentPhotos[currentPhotoIndex];
-            resetZoom();
-            updateLightboxCounter();
-        }
-
-        function updateLightboxCounter() {
-            const counter = document.getElementById('lb-count-text');
-            const prevBtn = document.getElementById('lb-prev');
-            const nextBtn = document.getElementById('lb-next');
-            
-            if (currentPhotos.length > 1) {
-                counter.innerText = `${currentPhotoIndex + 1} / ${currentPhotos.length}`;
-                prevBtn.disabled = currentPhotoIndex === 0;
-                nextBtn.disabled = currentPhotoIndex === currentPhotos.length - 1;
-            }
-        }
-
-        function zoomLightbox(factor) {
-            lbScale *= factor;
-            // Ограничиваем зум
-            if (lbScale < 0.5) lbScale = 0.5;
-            if (lbScale > 10) lbScale = 10;
-            
-            // Если уменьшили до 1 или меньше - сбрасываем позицию
-            if (lbScale <= 1) {
-                lbTranslateX = 0;
-                lbTranslateY = 0;
-            }
-            
-            updateLightboxTransform();
-        }
-
-        function resetZoom() {
-            lbScale = 1;
-            lbTranslateX = 0;
-            lbTranslateY = 0;
-            updateLightboxTransform();
-        }
-
-        function updateLightboxTransform() {
-            const img = document.getElementById('lightbox-img');
-            img.style.transform = `translate(${lbTranslateX}px, ${lbTranslateY}px) scale(${lbScale})`;
-        }
-
-        async function processSubmission(newStatus) {
+        async function submitReview(status) {
             if (!currentSubmissionId) return;
-            
-            const comment = document.getElementById('teacher-comment').value.trim();
-            const btnApprove = document.querySelector('.btn-approve');
-            const btnReject = document.querySelector('.btn-reject');
-            const btnSave = document.getElementById('btn-save-comment');
-            
-            if(btnApprove) btnApprove.disabled = true;
-            if(btnReject) btnReject.disabled = true;
-            if(btnSave) btnSave.disabled = true;
-            if(btnApprove) btnApprove.innerText = '⏳ Обработка...';
+            const feedback = document.getElementById('rev-feedback').value.trim();
             
             try {
-                const updateData = { teacher_comment: comment, checked_at: new Date().toISOString() };
-                if (newStatus) updateData.status = newStatus;
-
-                const { error: updateError } = await db
-                    .from('homework_submissions')
-                    .update(updateData)
-                    .eq('id', currentSubmissionId);
+                await db.from('assignments').update({
+                    status: status,
+                    teacher_feedback: feedback,
+                    checked_at: new Date().toISOString()
+                }).eq('id', currentSubmissionId);
                 
-                if (updateError) throw updateError;
-                
-                if (newStatus === 'approved') {
-                    const sub = submissionsCache.find(s => s.id === currentSubmissionId);
-                    if (sub) {
-                        const { data: studentData } = await db.from('students').select('huikons, rating').eq('telegram_id', sub.student_id).single();
-                        if (studentData) {
-                            await db.from('students').update({ 
-                                huikons: (studentData.huikons || 0) + 10,
-                                rating: (studentData.rating || 50) + 5
-                            }).eq('telegram_id', sub.student_id);
-                        }
-                        
-                        await db.from('balance_history').insert([{
-                            student_id: sub.student_id,
-                            change_amount: 10,
-                            reason: 'dz_approved'
-                        }]);
-                    }
+                // Если принято - начисляем стрик и очки
+                if (status === 'approved') {
+                    const { data: sub } = await db.from('assignments').select('student_id').eq('id', currentSubmissionId).single();
+                    await processStreak(sub.student_id);
                 }
                 
-                alert(newStatus ? (newStatus === 'approved' ? 'Работа принята!' : 'Работа возвращена.') : 'Комментарий сохранен!');
+                alert(status === 'approved' ? 'Работа принята!' : 'Работа возвращена!');
+                closeReview();
+                loadSubmissions();
+            } catch(e) { alert('Ошибка: ' + e.message); }
+        }
+
+        // Обработка стриков
+        async function processStreak(studentId) {
+            const todayMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"})).toISOString().split('T')[0];
+            
+            const { data: student } = await db.from('students').select('current_streak, last_submission_date_msk, huikons').eq('telegram_id', studentId).single();
+            
+            let newStreak = 1;
+            let reward = 5;
+            
+            if (student.last_submission_date_msk === todayMSK) {
+                // Уже сдавал сегодня - не меняем стрик
+                newStreak = student.current_streak;
+                reward = 0;
+            } else {
+                const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+                if (student.last_submission_date_msk === yesterday) {
+                    newStreak = student.current_streak + 1;
+                }
+                // Иначе сброс на 1
                 
-                await loadSubmissions();
-                document.getElementById('viewer-content').style.display = 'none';
-                document.getElementById('empty-state').style.display = 'block';
-                currentSubmissionId = null;
-                
-            } catch (e) {
-                alert('Ошибка: ' + e.message);
-                console.error(e);
-            } finally {
-                if(btnApprove) { btnApprove.disabled = false; btnApprove.innerText = '✅ Принять (+10)'; }
-                if(btnReject) btnReject.disabled = false;
-                if(btnSave) btnSave.disabled = false;
+                if (newStreak === 1) reward = 5;
+                else if (newStreak === 2) reward = 10;
+                else reward = 15;
             }
+            
+            if (reward > 0) {
+                await db.from('students').update({
+                    current_streak: newStreak,
+                    last_submission_date_msk: todayMSK,
+                    huikons: (student.huikons || 0) + reward
+                }).eq('telegram_id', studentId);
+                
+                await db.from('balance_history').insert([{
+                    student_id: studentId,
+                    change_amount: reward,
+                    reason: `streak_day_${newStreak}`
+                }]);
+            }
+        }
+
+        // Штрафы
+        function showPenaltyModal() {
+            document.getElementById('penalty-modal').classList.add('active');
+            selectedPenalty = -20;
+            updatePenaltyButtons();
+        }
+
+        function closePenalty() {
+            document.getElementById('penalty-modal').classList.remove('active');
+        }
+
+        function selectPenalty(amount) {
+            selectedPenalty = amount;
+            updatePenaltyButtons();
+        }
+
+        function updatePenaltyButtons() {
+            document.querySelectorAll('.penalty-btn').forEach(btn => {
+                btn.classList.toggle('selected', parseInt(btn.innerText) === selectedPenalty);
+            });
+        }
+
+        async function applyPenalty() {
+            const reason = document.getElementById('pen-reason').value.trim();
+            if (!reason) return alert('Укажите причину штрафа!');
+            
+            const { data: sub } = await db.from('assignments').select('student_id').eq('id', currentSubmissionId).single();
+            const { data: student } = await db.from('students').select('huikons').eq('telegram_id', sub.student_id).single();
+            
+            const newBalance = Math.max(0, (student.huikons || 0) + selectedPenalty);
+            
+            try {
+                await db.from('students').update({ huikons: newBalance }).eq('telegram_id', sub.student_id);
+                await db.from('balance_history').insert([{
+                    student_id: sub.student_id,
+                    change_amount: selectedPenalty,
+                    reason: `penalty: ${reason}`
+                }]);
+                alert(`Списано ${Math.abs(selectedPenalty)} хуиконов. Новый баланс: ${newBalance}`);
+                closePenalty();
+                closeReview();
+            } catch(e) { alert('Ошибка: ' + e.message); }
+        }
+
+        // Планирование недели
+        async function scheduleWeek() {
+            const date = document.getElementById('activation-date').value;
+            if (!date) return alert('Выберите дату активации!');
+            
+            const assignments = [];
+            for (let i = 0; i < 7; i++) {
+                const title = document.getElementById(`day-title-${i}`).value.trim();
+                const url = document.getElementById(`day-url-${i}`).value.trim();
+                if (title && url) {
+                    assignments.push({ title, content_url: url, day_of_week: i + 1, type: 'daily' });
+                }
+            }
+            
+            if (!assignments.length) return alert('Заполните хотя бы одно задание!');
+            
+            // Получаем всех учеников
+            const { data: students } = await db.from('students').select('telegram_id');
+            if (!students.length) return alert('Нет учеников в базе!');
+            
+            // Создаем задания для каждого ученика
+            const bulkInsert = [];
+            students.forEach(stu => {
+                assignments.forEach(asn => {
+                    bulkInsert.push({
+                        student_id: stu.telegram_id,
+                        ...asn,
+                        scheduled_date: date,
+                        activation_status: 'scheduled',
+                        week_label: date
+                    });
+                });
+            });
+            
+            try {
+                await db.from('assignments').insert(bulkInsert);
+                alert(`Запланировано ${bulkInsert.length} заданий на ${date}!`);
+                // Очистка полей
+                for (let i = 0; i < 7; i++) {
+                    document.getElementById(`day-title-${i}`).value = '';
+                    document.getElementById(`day-url-${i}`).value = '';
+                }
+            } catch(e) { alert('Ошибка: ' + e.message); }
+        }
+
+        async function saveDraft() {
+            alert('Черновик сохранен локально (в реальном проекте здесь будет сохранение в БД со статусом draft)');
+        }
+
+        async function assignIndividual() {
+            const studentId = document.getElementById('indiv-student').value;
+            const title = document.getElementById('indiv-title').value.trim();
+            const url = document.getElementById('indiv-url').value.trim();
+            const comment = document.getElementById('indiv-comment').value.trim();
+            
+            if (!studentId || !title) return alert('Выберите ученика и укажите название!');
+            
+            try {
+                await db.from('assignments').insert([{
+                    student_id: parseInt(studentId),
+                    type: 'individual',
+                    title,
+                    content_url: url,
+                    teacher_comment: comment,
+                    activation_status: 'active',
+                    status: 'assigned'
+                }]);
+                alert('Индивидуальное задание назначено!');
+                document.getElementById('indiv-title').value = '';
+                document.getElementById('indiv-url').value = '';
+                document.getElementById('indiv-comment').value = '';
+            } catch(e) { alert('Ошибка: ' + e.message); }
+        }
+
+        // Lightbox
+        function openLightbox(src) {
+            document.getElementById('lb-img').src = src;
+            document.getElementById('lightbox').classList.add('active');
+        }
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
         }
     </script>
 </body>
