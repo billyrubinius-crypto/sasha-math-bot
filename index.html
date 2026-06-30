@@ -547,38 +547,42 @@
             if (!assignmentId) { status.innerText = "⚠️ Выбери задание из списка!"; status.style.color = "#ff9800"; return; }
             if (selectedFiles.length === 0) { status.innerText = "⚠️ Выберите фото!"; status.style.color = "#ff9800"; return; }
             
-            // === НОВАЯ ЛОГИКА ДЕДЛАЙНОВ ===
+            // === ЛОГИКА ДЕДЛАЙНОВ И НАГРАД ===
             const assignment = activeAssignments.find(a => a.id === assignmentId);
             if (!assignment) return;
 
-            // Получаем текущее время СТРОГО по Москве
+            let rewardPoints = 5; // Базовая награда
             const nowMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"}));
-            let deadlineMSK;
+            let deadlineMSK = null;
 
-            if (assignment.type === 'weekly') {
-                // ЕЖЕНЕДЕЛЬНОЕ: Дедлайн всегда понедельник 00:00 МСК
-                const currentDay = nowMSK.getDay(); // 0=Вс, 1=Пн...6=Сб
+            // Определяем награду и дедлайн в зависимости от типа
+            if (assignment.type === 'individual') {
+                rewardPoints = 15; // Индивидуальное сложнее
+                deadlineMSK = null; // Без дедлайна (или можно поставить через месяц)
+            } else if (assignment.type === 'weekly') {
+                rewardPoints = 30; // Еженедельное самое ценное
+                const currentDay = nowMSK.getDay(); 
                 let daysUntilMonday = (1 - currentDay + 7) % 7;
                 if (daysUntilMonday === 0) daysUntilMonday = 7; 
-                
                 deadlineMSK = new Date(nowMSK.getTime() + daysUntilMonday * 86400000);
                 deadlineMSK.setHours(0, 0, 0, 0);
             } else {
-                // ЕЖЕДНЕВНОЕ: Безопасная обработка даты
+                // Ежедневное
+                rewardPoints = 5;
                 let dateStr = assignment.scheduled_date;
-                
-                if (dateStr instanceof Date) {
-                    dateStr = dateStr.toISOString().split('T')[0];
-                } else if (typeof dateStr === 'string' && dateStr.includes('T')) {
-                    dateStr = dateStr.split('T')[0];
+                if (!dateStr) {
+                     status.innerText = "⚠️ Ошибка даты задания"; return; 
                 }
+                if (dateStr instanceof Date) dateStr = dateStr.toISOString().split('T')[0];
+                else if (typeof dateStr === 'string' && dateStr.includes('T')) dateStr = dateStr.split('T')[0];
 
                 const [year, month, day] = dateStr.split('-').map(Number);
                 deadlineMSK = new Date(year, month - 1, day, 23, 59, 0); 
                 deadlineMSK.setMinutes(deadlineMSK.getMinutes() + 2); 
             }
 
-            if (nowMSK > deadlineMSK) {
+            // Проверка дедлайна (только если он установлен)
+            if (deadlineMSK && nowMSK > deadlineMSK) {
                 status.innerText = `⏰ Время вышло! Дедлайн: ${deadlineMSK.toLocaleString('ru-RU')} МСК`;
                 status.style.color = "#f44336";
                 return;
@@ -609,18 +613,18 @@
                 
                 if (dbError) throw dbError;
                 
-                // 3. Начисляем бонус за загрузку (+5 хуиконов)
+                // 3. Начисляем баллы (теперь динамически!)
                 await db.from('balance_history').insert([{
                     student_id: currentUser.id,
-                    change_amount: 5,
-                    reason: 'dz_upload'
+                    change_amount: rewardPoints,
+                    reason: `dz_upload_${assignment.type}` // Сохраняем тип для истории
                 }]);
                 
                 await db.from('students').update({ 
-                    huikons: (currentUser.stats?.huikons || 0) + 5 
+                    huikons: (currentUser.stats?.huikons || 0) + rewardPoints 
                 }).eq('telegram_id', currentUser.id);
                 
-                status.innerText = "✅ ДЗ загружено! Жди проверки учителя.";
+                status.innerText = `✅ ДЗ загружено! (+${rewardPoints} хуиконов)`;
                 status.style.color = "#4caf50";
                 
                 // Сброс формы
