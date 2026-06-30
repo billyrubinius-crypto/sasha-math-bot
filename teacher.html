@@ -24,7 +24,6 @@
             display: flex; 
             flex-direction: column; 
             overflow: hidden; 
-            /* Убираем скролл всего боди, скроллим только контент */
         }
         
         /* Экран входа */
@@ -39,7 +38,6 @@
             background: white; 
             border-bottom: 1px solid #eee; 
             flex-shrink: 0; 
-            /* Отступ сверху = высоте челки + небольшой воздух */
             padding-top: var(--safe-top); 
             z-index: 100;
         }
@@ -82,7 +80,6 @@
             overflow-y: auto; 
             padding: 15px; 
             display: none; 
-            /* Плавный скролл на iOS */
             -webkit-overflow-scrolling: touch; 
         }
         .content-area.active { display: block; }
@@ -97,7 +94,6 @@
         }
         .day-row { 
             display: grid; 
-            /* Фиксированная ширина для дня, остальное под инпуты */
             grid-template-columns: 80px 1fr; 
             gap: 12px; 
             margin-bottom: 12px; 
@@ -106,19 +102,20 @@
         .day-label { 
             font-weight: bold; 
             font-size: 14px; 
-            padding-top: 8px; /* Выравнивание с первым инпутом */
+            padding-top: 8px; 
         }
         .day-inputs { 
             display: flex; 
             flex-direction: column; 
             gap: 6px; 
         }
-        .day-inputs input { 
+        .day-inputs input, .day-inputs textarea { 
             padding: 10px; 
             border: 1px solid #ddd; 
             border-radius: 6px; 
             font-size: 14px; 
             width: 100%; 
+            font-family: inherit;
         }
         
         .btn-primary { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 10px; }
@@ -150,7 +147,7 @@
             max-height: 90vh; overflow-y: auto; padding: 20px; position: relative;
         }
         .close-modal { position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666; }
-        .review-photo { width: 100%; border-radius: 8px; margin: 15px 0; cursor: zoom-in; background: #eee; min-height: 200px; object-fit: contain; }
+        .review-photo { width: 100%; border-radius: 8px; margin: 0; cursor: zoom-in; background: #eee; min-height: 200px; object-fit: contain; }
         .action-buttons { display: flex; gap: 10px; margin-top: 15px; }
         .btn-success { background: var(--success); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; flex: 1; cursor: pointer; }
         .btn-danger { background: var(--danger); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; flex: 1; cursor: pointer; }
@@ -171,7 +168,7 @@
         /* Адаптив для мобильных */
         @media (max-width: 600px) {
             .day-row { 
-                grid-template-columns: 1fr; /* На телефоне день сверху, инпуты снизу */
+                grid-template-columns: 1fr; 
                 gap: 6px; 
             }
             .day-label { padding-top: 0; margin-bottom: 2px; }
@@ -223,6 +220,7 @@
                 <label style="font-weight:bold; display:block; margin-bottom:5px;">🔥 Еженедельное задание:</label>
                 <input type="text" id="weekly-title" placeholder="Название" style="width:100%; padding:8px; margin-bottom:5px; border:1px solid #ddd; border-radius:6px;">
                 <input type="url" id="weekly-url" placeholder="Ссылка на задачу" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px;">
+                <textarea id="weekly-comment" placeholder="Комментарий ученику (необязательно)" style="width:100%; padding:8px; margin-top:5px; border:1px solid #ddd; border-radius:6px; min-height:40px; resize:none;"></textarea>
             </div>
             
             <div style="margin-top:20px; padding-top:15px; border-top:1px solid #eee;">
@@ -253,7 +251,17 @@
             <div id="rev-comment-teacher" style="font-size:13px; color:#666; margin-bottom:10px; font-style:italic;"></div>
             <a id="rev-link" href="#" target="_blank" class="card-link">🔗 Открыть исходник задачи</a>
             
-            <img id="rev-photo" class="review-photo" src="" onclick="openLightbox(this.src)">
+            <!-- Контейнер фото с навигацией -->
+            <div style="position:relative; background:#eee; border-radius:8px; overflow:hidden; min-height:200px; display:flex; align-items:center; justify-content:center; margin: 15px 0;">
+                <img id="rev-photo" class="review-photo" src="" onclick="openLightbox()" style="margin:0; cursor:zoom-in;">
+                
+                <!-- Кнопки листания -->
+                <button id="prev-photo-btn" onclick="changeReviewPhoto(-1)" style="position:absolute; left:10px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.5); color:white; border:none; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; display:none;">‹</button>
+                <button id="next-photo-btn" onclick="changeReviewPhoto(1)" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.5); color:white; border:none; border-radius:50%; width:36px; height:36px; font-size:18px; cursor:pointer; display:none;">›</button>
+                
+                <!-- Счетчик фото -->
+                <div id="photo-counter" style="position:absolute; bottom:10px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); color:white; padding:4px 10px; border-radius:12px; font-size:12px; display:none;">1 / 1</div>
+            </div>
             
             <textarea id="rev-feedback" placeholder="Комментарий при проверке..."></textarea>
             
@@ -298,14 +306,14 @@
         const PASS = 'sasha2024';
 
         let db, currentSubmissionId = null, selectedPenalty = -20, studentsList = [];
-        let currentCheckView = 'pending'; // 'pending' или 'archive'
+        let currentCheckView = 'pending'; 
 
         // Инициализация
         document.addEventListener('DOMContentLoaded', () => {
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             if (sessionStorage.getItem('auth')) showApp();
             
-            // Генерация полей для дней недели
+            // Генерация полей для дней недели (с добавлением комментария)
             const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
             const container = document.getElementById('days-container');
             days.forEach((day, i) => {
@@ -315,6 +323,7 @@
                         <div class="day-inputs">
                             <input type="text" id="day-title-${i}" placeholder="Название задания">
                             <input type="url" id="day-url-${i}" placeholder="Ссылка на РешуЕГЭ">
+                            <textarea id="day-comment-${i}" placeholder="Комментарий ученику (необязательно)" style="padding:8px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:100%; min-height:40px; resize:none;"></textarea>
                         </div>
                     </div>`;
             });
@@ -344,7 +353,6 @@
             el.classList.add('active');
             document.getElementById(`tab-${tab}`).classList.add('active');
             
-            // Показываем/скрываем под-табы
             document.getElementById('sub-tabs-container').style.display = tab === 'check' ? 'flex' : 'none';
             
             if (tab === 'check') loadSubmissions();
@@ -383,7 +391,7 @@
             if (error) return list.innerHTML = `<div style="color:red; padding:20px">${error.message}</div>`;
             
             if (!data.length) {
-                const msg = currentCheckView === 'pending' ? 'Нет работ на проверку ' : 'Архив пуст';
+                const msg = currentCheckView === 'pending' ? 'Нет работ на проверку 🎉' : 'Архив пуст';
                 return list.innerHTML = `<div style="text-align:center; padding:40px; color:#999">${msg}</div>`;
             }
             
@@ -395,8 +403,8 @@
                 
                 const typeLabels = { daily: 'Ежедневное', weekly: 'Еженедельное', individual: 'Индивидуальное' };
                 const badgeClass = `badge-${sub.type}`;
-                const statusBadge = sub.status === 'approved' ? 'badge-approved' : 'badge-rejected';
-                const statusText = sub.status === 'approved' ? 'Принято' : 'Возврат';
+                const statusBadge = sub.approval_status === 'approved' ? 'badge-approved' : 'badge-rejected';
+                const statusText = sub.approval_status === 'approved' ? 'Принято' : 'Возврат';
                 
                 card.innerHTML = `
                     <div class="card-header">
@@ -411,6 +419,10 @@
             });
         }
 
+        // Переменные для навигации по фото внутри модального окна
+        let reviewPhotos = [];
+        let reviewPhotoIndex = 0;
+
         function openReview(sub) {
             currentSubmissionId = sub.id;
             document.getElementById('rev-student').innerText = sub.students?.name || 'Unknown';
@@ -423,16 +435,16 @@
             document.getElementById('rev-comment-teacher').innerText = sub.teacher_comment || 'Нет комментария от учителя';
             document.getElementById('rev-link').href = sub.content_url || '#';
             document.getElementById('rev-link').style.display = sub.content_url ? 'inline-block' : 'none';
-            
-            // Обработка фото (может быть строкой или JSON массивом)
-            let photoSrc = '';
-            try {
-                const photos = JSON.parse(sub.photo_url);
-                photoSrc = Array.isArray(photos) ? photos[0] : photos;
-            } catch { photoSrc = sub.photo_url || ''; }
-            
-            document.getElementById('rev-photo').src = photoSrc;
             document.getElementById('rev-feedback').value = sub.teacher_feedback || '';
+            
+            // Обработка массива фото
+            try {
+                reviewPhotos = JSON.parse(sub.photo_url);
+                if (!Array.isArray(reviewPhotos)) reviewPhotos = [reviewPhotos];
+            } catch { reviewPhotos = [sub.photo_url]; }
+            
+            reviewPhotoIndex = 0;
+            updateReviewPhotoDisplay();
             
             document.getElementById('review-modal').classList.add('active');
         }
@@ -442,14 +454,62 @@
             currentSubmissionId = null;
         }
 
+        // Функция обновления отображения фото и кнопок навигации
+        function updateReviewPhotoDisplay() {
+            const img = document.getElementById('rev-photo');
+            const prevBtn = document.getElementById('prev-photo-btn');
+            const nextBtn = document.getElementById('next-photo-btn');
+            const counter = document.getElementById('photo-counter');
+            
+            if (!img || !reviewPhotos.length) return;
+            
+            img.src = reviewPhotos[reviewPhotoIndex];
+            
+            if (reviewPhotos.length > 1) {
+                prevBtn.style.display = 'block';
+                nextBtn.style.display = 'block';
+                counter.style.display = 'block';
+                counter.innerText = `${reviewPhotoIndex + 1} / ${reviewPhotos.length}`;
+                
+                prevBtn.disabled = reviewPhotoIndex === 0;
+                nextBtn.disabled = reviewPhotoIndex === reviewPhotos.length - 1;
+                prevBtn.style.opacity = reviewPhotoIndex === 0 ? '0.3' : '1';
+                nextBtn.style.opacity = reviewPhotoIndex === reviewPhotos.length - 1 ? '0.3' : '1';
+            } else {
+                prevBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+                counter.style.display = 'none';
+            }
+        }
+
+        // Листание фото влево/вправо
+        function changeReviewPhoto(dir) {
+            reviewPhotoIndex += dir;
+            if (reviewPhotoIndex < 0) reviewPhotoIndex = 0;
+            if (reviewPhotoIndex >= reviewPhotos.length) reviewPhotoIndex = reviewPhotos.length - 1;
+            updateReviewPhotoDisplay();
+        }
+
+        // Обновленная функция открытия Lightbox (берет текущее фото из навигации)
+        function openLightbox() {
+            if (reviewPhotos.length > 0) {
+                document.getElementById('lb-img').src = reviewPhotos[reviewPhotoIndex];
+                document.getElementById('lightbox').classList.add('active');
+            }
+        }
+
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+        }
+
         async function submitReview(status) {
             if (!currentSubmissionId) return;
             const feedback = document.getElementById('rev-feedback').value.trim();
             
             try {
                 await db.from('assignments').update({
-                    status: 'checked', // Всегда ставим checked, а approving/rejecting храним отдельно? Нет, лучше отдельное поле
-                    approval_status: status, // Новое поле? Или используем status? Давай пока status = checked, а решение в feedback
+                    status: 'checked',
+                    approval_status: status,
                     teacher_feedback: feedback,
                     checked_at: new Date().toISOString()
                 }).eq('id', currentSubmissionId);
@@ -555,20 +615,24 @@
             
             const assignments = [];
             
-            // Ежедневные задания
+            // Ежедневные задания (теперь с комментарием)
             for (let i = 0; i < 7; i++) {
                 const title = document.getElementById(`day-title-${i}`).value.trim();
                 const url = document.getElementById(`day-url-${i}`).value.trim();
+                const comment = document.getElementById(`day-comment-${i}`).value.trim();
+                
                 if (title && url) {
-                    assignments.push({ title, content_url: url, day_of_week: i + 1, type: 'daily' });
+                    assignments.push({ title, content_url: url, teacher_comment: comment, day_of_week: i + 1, type: 'daily' });
                 }
             }
             
-            // Еженедельное задание
+            // Еженедельное задание (тоже с комментарием)
             const weeklyTitle = document.getElementById('weekly-title').value.trim();
             const weeklyUrl = document.getElementById('weekly-url').value.trim();
+            const weeklyComment = document.getElementById('weekly-comment').value.trim();
+            
             if (weeklyTitle && weeklyUrl) {
-                assignments.push({ title: weeklyTitle, content_url: weeklyUrl, type: 'weekly' });
+                assignments.push({ title: weeklyTitle, content_url: weeklyUrl, teacher_comment: weeklyComment, type: 'weekly' });
             }
             
             if (!assignments.length) return alert('Заполните хотя бы одно задание!');
@@ -599,9 +663,11 @@
                 for (let i = 0; i < 7; i++) {
                     document.getElementById(`day-title-${i}`).value = '';
                     document.getElementById(`day-url-${i}`).value = '';
+                    document.getElementById(`day-comment-${i}`).value = '';
                 }
                 document.getElementById('weekly-title').value = '';
                 document.getElementById('weekly-url').value = '';
+                document.getElementById('weekly-comment').value = '';
             } catch(e) { alert('Ошибка: ' + e.message); }
         }
 
@@ -632,15 +698,6 @@
                 document.getElementById('indiv-url').value = '';
                 document.getElementById('indiv-comment').value = '';
             } catch(e) { alert('Ошибка: ' + e.message); }
-        }
-
-        // Lightbox
-        function openLightbox(src) {
-            document.getElementById('lb-img').src = src;
-            document.getElementById('lightbox').classList.add('active');
-        }
-        function closeLightbox() {
-            document.getElementById('lightbox').classList.remove('active');
         }
     </script>
 </body>
