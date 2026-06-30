@@ -190,7 +190,7 @@
     <div id="screen-homework" class="screen">
         <div class="tabs-hw">
             <button class="tab-btn active" onclick="switchHwTab('upload')"> Сдать новое</button>
-            <button class="tab-btn" onclick="switchHwTab('archive')">📂 Мои работы</button>
+            <button class="tab-btn" onclick="switchHwTab('archive')"> Мои работы</button>
         </div>
 
         <!-- Вкладка загрузки -->
@@ -198,13 +198,21 @@
             <div class="dz-section">
                 <div class="dz-title">Загрузить домашку</div>
                 
+                <!-- Выбор задания -->
                 <div class="input-group">
                     <label style="font-size:14px; font-weight:bold; color:var(--tg-hint)">Какое ДЗ сдаешь?</label>
-                    <select id="assignment-select">
+                    <select id="assignment-select" onchange="showAssignmentDetails()">
                         <option value="">Выбери задание из списка...</option>
                     </select>
                 </div>
 
+                <!-- Карточка с деталями выбранного задания -->
+                <div id="assignment-details" style="display:none; background:var(--tg-bg); border-radius:12px; padding:15px; margin-bottom:15px; border:1px solid rgba(128,128,128,0.2);">
+                    <div style="font-weight:bold; margin-bottom:8px; font-size:15px;" id="detail-title"></div>
+                    <a id="detail-link" href="#" target="_blank" style="color:var(--tg-link); text-decoration:none; font-size:14px; display:inline-block; word-break:break-all;">🔗 Открыть условие задачи</a>
+                </div>
+
+                <!-- Загрузка фото -->
                 <div class="file-upload-area" id="upload-area" onclick="document.getElementById('file-input').click()">
                     <div class="upload-icon">📷</div>
                     <div class="upload-text">Нажми, чтобы выбрать фото (можно несколько)</div>
@@ -232,7 +240,7 @@
 
     <!-- ЭКРАН 3: ЛИДЕРБОРД -->
     <div id="screen-leaderboard" class="screen">
-        <h2 style="text-align: center; margin-bottom: 20px; font-size: 22px;">🏆 Топ учеников</h2>
+        <h2 style="text-align: center; margin-bottom: 20px; font-size: 22px;"> Топ учеников</h2>
         <ul class="leaderboard-list" id="lb-list">
             <li style="text-align: center; padding: 30px; opacity: 0.5;">Загрузка...</li>
         </ul>
@@ -450,6 +458,34 @@
             }
         }
 
+        // Показывает ссылку и название выбранного задания
+        function showAssignmentDetails() {
+            const select = document.getElementById('assignment-select');
+            const detailsDiv = document.getElementById('assignment-details');
+            const btn = document.getElementById('btn-upload-dz');
+            const assignmentId = select.value;
+            
+            if (!assignmentId) {
+                detailsDiv.style.display = 'none';
+                btn.disabled = true;
+                return;
+            }
+            
+            const assignment = activeAssignments.find(a => a.id === assignmentId);
+            if (assignment) {
+                document.getElementById('detail-title').innerText = assignment.title || 'Без названия';
+                const linkEl = document.getElementById('detail-link');
+                if (assignment.content_url) {
+                    linkEl.href = assignment.content_url;
+                    linkEl.style.display = 'inline-block';
+                } else {
+                    linkEl.style.display = 'none';
+                }
+                detailsDiv.style.display = 'block';
+                btn.disabled = false; // Разблокируем кнопку загрузки
+            }
+        }
+
         // --- ЗАГРУЗКА ФОТО И ДЗ (НОВАЯ ЛОГИКА) ---
         function handleFileSelect(event) {
             const files = Array.from(event.target.files);
@@ -506,7 +542,7 @@
             deadlineUTC.setUTCHours(21, 2, 0, 0); // 21:02 UTC = 00:02 MSK
             
             if (nowUTC > deadlineUTC) {
-                status.innerText = "⏰ Дедлайн (00:02 МСК) уже прошел!";
+                status.innerText = " Дедлайн (00:02 МСК) уже прошел!";
                 status.style.color = "#f44336";
                 return;
             }
@@ -556,6 +592,7 @@
                 document.getElementById('upload-area').querySelector('.upload-text').innerText = 'Нажми, чтобы выбрать фото (можно несколько)';
                 document.getElementById('upload-area').querySelector('.upload-icon').style.display = 'block';
                 select.value = "";
+                showAssignmentDetails(); // Скрываем детали
                 
                 await loadProfile();
                 loadMyHomework();
@@ -653,7 +690,7 @@
                     li.className = `lb-item ${isMe ? 'lb-me' : ''}`;
                     
                     let rankDisplay = `#${index + 1}`;
-                    if (index === 0) rankDisplay = '🥇';
+                    if (index === 0) rankDisplay = '';
                     if (index === 1) rankDisplay = '';
                     if (index === 2) rankDisplay = '🥉';
 
