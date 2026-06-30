@@ -296,8 +296,8 @@
 
     <!-- Lightbox -->
     <div id="lightbox" onclick="closeLightbox()">
-        <button class="lb-close">✕</button>
-        <img id="lb-img" src="" onclick="event.stopPropagation()">
+        <button class="lb-close" onclick="event.stopPropagation(); closeLightbox()" style="z-index: 3001; pointer-events: auto;">✕</button>
+        <img id="lb-img" src="" onclick="event.stopPropagation()" style="position: relative; z-index: 3000;">
     </div>
 
     <script>
@@ -761,6 +761,101 @@
                 document.getElementById('indiv-url').value = '';
                 document.getElementById('indiv-comment').value = '';
             } catch(e) { alert('Ошибка: ' + e.message); }
+        }
+        // Переменные для зума
+        let lbScale = 1;
+        let initialDist = 0;
+        let initialScale = 1;
+        let isPinching = false;
+
+        // Инициализация обработчиков зума при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            const lbWrapper = document.getElementById('lightbox');
+            const lbImg = document.getElementById('lb-img');
+
+            // 1. Зум колесиком (ПК)
+            lbWrapper.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                applyZoom(delta);
+            }, { passive: false });
+
+            // 2. Плавный тач-зум (Телефон)
+            lbWrapper.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    isPinching = true;
+                    initialDist = Math.hypot(
+                        e.touches[0].pageX - e.touches[1].pageX,
+                        e.touches[0].pageY - e.touches[1].pageY
+                    );
+                    initialScale = lbScale;
+                    // Отключаем анимацию во время жеста для мгновенного отклика
+                    lbImg.style.transition = 'none'; 
+                }
+            }, { passive: false });
+
+            lbWrapper.addEventListener('touchmove', (e) => {
+                if (isPinching && e.touches.length === 2) {
+                    e.preventDefault();
+                    const dist = Math.hypot(
+                        e.touches[0].pageX - e.touches[1].pageX,
+                        e.touches[0].pageY - e.touches[1].pageY
+                    );
+                    
+                    let newScale = initialScale * (dist / initialDist);
+                    // Ограничиваем зум от 1x до 4x
+                    newScale = Math.min(Math.max(newScale, 1), 4);
+                    
+                    lbScale = newScale;
+                    lbImg.style.transform = `scale(${lbScale})`;
+                }
+            }, { passive: false });
+
+            lbWrapper.addEventListener('touchend', () => {
+                if (isPinching) {
+                    isPinching = false;
+                    // Включаем плавность после окончания жеста
+                    lbImg.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                    if (lbScale < 1) resetZoom();
+                }
+            });
+        });
+
+        function applyZoom(factor) {
+            lbScale *= factor;
+            lbScale = Math.min(Math.max(lbScale, 1), 4);
+            updateLightboxTransform();
+        }
+
+        function resetZoom() {
+            lbScale = 1;
+            updateLightboxTransform();
+        }
+
+        function updateLightboxTransform() {
+            const img = document.getElementById('lb-img');
+            if (img) {
+                img.style.transform = `scale(${lbScale})`;
+                if (!isPinching) {
+                    img.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                }
+            }
+        }
+
+        // Обновленная функция открытия (сбрасывает зум)
+        function openLightbox() {
+            if (reviewPhotos.length > 0) {
+                document.getElementById('lb-img').src = reviewPhotos[reviewPhotoIndex];
+                resetZoom();
+                document.getElementById('lightbox').classList.add('active');
+            }
+        }
+
+        // Исправленное закрытие
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+            resetZoom();
         }
     </script>
 </body>
