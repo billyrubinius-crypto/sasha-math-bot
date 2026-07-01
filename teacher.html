@@ -11,7 +11,6 @@
             --bg: #f5f5f5; 
             --success: #28a745; 
             --danger: #dc3545;
-            /* Безопасная зона сверху для iPhone */
             --safe-top: env(safe-area-inset-top, 20px); 
         }
         
@@ -32,7 +31,7 @@
         .login-box input { width: 100%; padding: 12px; margin: 15px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
         .login-box button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; }
 
-        /* Верхние табы - ИСПРАВЛЕНО ДЛЯ IPHONE */
+        /* Верхние табы */
         .top-tabs { 
             display: flex; 
             background: white; 
@@ -84,7 +83,7 @@
         }
         .content-area.active { display: block; }
 
-        /* Стили для планирования недели - ИСПРАВЛЕНО НАЛОЖЕНИЕ */
+        /* Стили для планирования недели */
         .week-planner { 
             background: white; 
             border-radius: 12px; 
@@ -163,7 +162,7 @@
         #lightbox { display: none; position: fixed; inset: 0; background: black; z-index: 3000; touch-action: none; }
         #lightbox.active { display: block; }
         #lb-img { width: 100%; height: 100%; object-fit: contain; transform-origin: center center; }
-        .lb-close { position: absolute; top: calc(20px + var(--safe-top)); right: 20px; color: white; font-size: 30px; background: rgba(0,0,0,0.5); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; }
+        .lb-close { position: absolute; top: calc(20px + var(--safe-top)); right: 20px; color: white; font-size: 30px; background: rgba(0,0,0,0.5); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; z-index: 3001; pointer-events: auto; }
 
         /* Адаптив для мобильных */
         @media (max-width: 600px) {
@@ -296,7 +295,7 @@
 
     <!-- Lightbox -->
     <div id="lightbox" onclick="closeLightbox()">
-        <button class="lb-close" onclick="event.stopPropagation(); closeLightbox()" style="z-index: 3001; pointer-events: auto;">✕</button>
+        <button class="lb-close" onclick="event.stopPropagation(); closeLightbox()">✕</button>
         <img id="lb-img" src="" onclick="event.stopPropagation()" style="position: relative; z-index: 3000;">
     </div>
 
@@ -312,17 +311,18 @@
         let reviewPhotos = [];
         let reviewPhotoIndex = 0;
 
-        // Переменные для зума
+        // Переменные для зума (ОБЪЕДИНЕНЫ В ОДИН БЛОК)
         let lbScale = 1;
         let initialDist = 0;
         let initialScale = 1;
+        let isPinching = false;
 
         // Инициализация
         document.addEventListener('DOMContentLoaded', () => {
             db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             if (sessionStorage.getItem('auth')) showApp();
             
-            // Генерация полей для дней недели (с добавлением комментария)
+            // Генерация полей для дней недели
             const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
             const container = document.getElementById('days-container');
             days.forEach((day, i) => {
@@ -337,12 +337,12 @@
                     </div>`;
             });
 
-            // Установка даты активации по умолчанию (следующий понедельник)
+            // Установка даты активации по умолчанию
             const nextMonday = new Date();
             nextMonday.setDate(nextMonday.getDate() + (1 + 7 - nextMonday.getDay()) % 7 || 7);
             document.getElementById('activation-date').value = nextMonday.toISOString().split('T')[0];
 
-            // === ЛОГИКА ЗУМА ДЛЯ LIGHTBOX ===
+            // === ЛОГИКА ЗУМА ДЛЯ LIGHTBOX (ОБЪЕДИНЕННАЯ) ===
             const lbImg = document.getElementById('lb-img');
             const lbWrapper = document.getElementById('lightbox');
 
@@ -353,51 +353,63 @@
                 applyZoom(delta);
             }, { passive: false });
 
-            // 2. Зум щипком (Телефон)
+            // 2. Плавный тач-зум (Телефон)
             lbWrapper.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
-                    e.preventDefault(); // Блокируем стандартный зум браузера
+                    e.preventDefault();
+                    isPinching = true;
                     initialDist = Math.hypot(
                         e.touches[0].pageX - e.touches[1].pageX,
                         e.touches[0].pageY - e.touches[1].pageY
                     );
                     initialScale = lbScale;
+                    lbImg.style.transition = 'none'; 
                 }
             }, { passive: false });
 
             lbWrapper.addEventListener('touchmove', (e) => {
-                if (e.touches.length === 2) {
+                if (isPinching && e.touches.length === 2) {
                     e.preventDefault();
                     const dist = Math.hypot(
                         e.touches[0].pageX - e.touches[1].pageX,
                         e.touches[0].pageY - e.touches[1].pageY
                     );
-                    const scaleFactor = dist / initialDist;
-                    applyZoom(scaleFactor / (initialScale || 1)); // Нормализуем относительно начального масштаба
+                    
+                    let newScale = initialScale * (dist / initialDist);
+                    newScale = Math.min(Math.max(newScale, 1), 4);
+                    
+                    lbScale = newScale;
+                    lbImg.style.transform = `scale(${lbScale})`;
                 }
             }, { passive: false });
+
+            lbWrapper.addEventListener('touchend', () => {
+                if (isPinching) {
+                    isPinching = false;
+                    lbImg.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                    if (lbScale < 1) resetZoom();
+                }
+            });
         });
 
-        // Функция применения зума с ограничениями
         function applyZoom(factor) {
             lbScale *= factor;
-            // Ограничиваем зум от 1x до 5x
-            lbScale = Math.min(Math.max(lbScale, 1), 5);
+            lbScale = Math.min(Math.max(lbScale, 1), 4);
             updateLightboxTransform();
         }
 
-        // Сброс зума к исходному состоянию
         function resetZoom() {
             lbScale = 1;
             updateLightboxTransform();
         }
 
-        // Применение трансформации к изображению
         function updateLightboxTransform() {
             const img = document.getElementById('lb-img');
             if (img) {
                 img.style.transform = `scale(${lbScale})`;
-                img.style.transition = lbScale === 1 ? 'transform 0.2s ease' : 'none';
+                if (!isPinching) {
+                    img.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                }
             }
         }
 
@@ -500,7 +512,6 @@
             document.getElementById('rev-link').style.display = sub.content_url ? 'inline-block' : 'none';
             document.getElementById('rev-feedback').value = sub.teacher_feedback || '';
             
-            // Обработка массива фото
             try {
                 reviewPhotos = JSON.parse(sub.photo_url);
                 if (!Array.isArray(reviewPhotos)) reviewPhotos = [reviewPhotos];
@@ -551,18 +562,17 @@
             updateReviewPhotoDisplay();
         }
 
-        // Обновленная функция открытия Lightbox со сбросом зума
         function openLightbox() {
             if (reviewPhotos.length > 0) {
                 document.getElementById('lb-img').src = reviewPhotos[reviewPhotoIndex];
-                resetZoom(); // Сбрасываем масштаб при открытии
+                resetZoom();
                 document.getElementById('lightbox').classList.add('active');
             }
         }
 
         function closeLightbox() {
             document.getElementById('lightbox').classList.remove('active');
-            resetZoom(); // Сбрасываем масштаб при закрытии
+            resetZoom();
         }
 
         async function submitReview(status) {
@@ -577,7 +587,6 @@
                     checked_at: new Date().toISOString()
                 }).eq('id', currentSubmissionId);
                 
-                // Если принято - начисляем стрик и очки
                 if (status === 'approved') {
                     const { data: sub } = await db.from('assignments').select('student_id').eq('id', currentSubmissionId).single();
                     await processStreak(sub.student_id);
@@ -589,7 +598,6 @@
             } catch(e) { alert('Ошибка: ' + e.message); }
         }
 
-        // Обработка стриков
         async function processStreak(studentId) {
             const todayMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"})).toISOString().split('T')[0];
             
@@ -627,7 +635,6 @@
             }
         }
 
-        // Штрафы
         function showPenaltyModal() {
             document.getElementById('penalty-modal').classList.add('active');
             selectedPenalty = -20;
@@ -671,14 +678,12 @@
             } catch(e) { alert('Ошибка: ' + e.message); }
         }
 
-        // Планирование недели
         async function scheduleWeek() {
             const date = document.getElementById('activation-date').value;
             if (!date) return alert('Выберите дату активации!');
             
             const assignments = [];
             
-            // Ежедневные задания (теперь с комментарием)
             for (let i = 0; i < 7; i++) {
                 const title = document.getElementById(`day-title-${i}`).value.trim();
                 const url = document.getElementById(`day-url-${i}`).value.trim();
@@ -689,7 +694,6 @@
                 }
             }
             
-            // Еженедельное задание (тоже с комментарием)
             const weeklyTitle = document.getElementById('weekly-title').value.trim();
             const weeklyUrl = document.getElementById('weekly-url').value.trim();
             const weeklyComment = document.getElementById('weekly-comment').value.trim();
@@ -700,11 +704,9 @@
             
             if (!assignments.length) return alert('Заполните хотя бы одно задание!');
             
-            // Получаем всех учеников
             const { data: students } = await db.from('students').select('telegram_id');
             if (!students.length) return alert('Нет учеников в базе!');
             
-            // Создаем задания для каждого ученика
             const bulkInsert = [];
             students.forEach(stu => {
                 assignments.forEach(asn => {
@@ -722,7 +724,6 @@
             try {
                 await db.from('assignments').insert(bulkInsert);
                 alert(`Запланировано ${bulkInsert.length} заданий на ${date}!`);
-                // Очистка полей
                 for (let i = 0; i < 7; i++) {
                     document.getElementById(`day-title-${i}`).value = '';
                     document.getElementById(`day-url-${i}`).value = '';
@@ -761,101 +762,6 @@
                 document.getElementById('indiv-url').value = '';
                 document.getElementById('indiv-comment').value = '';
             } catch(e) { alert('Ошибка: ' + e.message); }
-        }
-        // Переменные для зума
-        let lbScale = 1;
-        let initialDist = 0;
-        let initialScale = 1;
-        let isPinching = false;
-
-        // Инициализация обработчиков зума при загрузке страницы
-        document.addEventListener('DOMContentLoaded', () => {
-            const lbWrapper = document.getElementById('lightbox');
-            const lbImg = document.getElementById('lb-img');
-
-            // 1. Зум колесиком (ПК)
-            lbWrapper.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                const delta = e.deltaY > 0 ? 0.9 : 1.1;
-                applyZoom(delta);
-            }, { passive: false });
-
-            // 2. Плавный тач-зум (Телефон)
-            lbWrapper.addEventListener('touchstart', (e) => {
-                if (e.touches.length === 2) {
-                    e.preventDefault();
-                    isPinching = true;
-                    initialDist = Math.hypot(
-                        e.touches[0].pageX - e.touches[1].pageX,
-                        e.touches[0].pageY - e.touches[1].pageY
-                    );
-                    initialScale = lbScale;
-                    // Отключаем анимацию во время жеста для мгновенного отклика
-                    lbImg.style.transition = 'none'; 
-                }
-            }, { passive: false });
-
-            lbWrapper.addEventListener('touchmove', (e) => {
-                if (isPinching && e.touches.length === 2) {
-                    e.preventDefault();
-                    const dist = Math.hypot(
-                        e.touches[0].pageX - e.touches[1].pageX,
-                        e.touches[0].pageY - e.touches[1].pageY
-                    );
-                    
-                    let newScale = initialScale * (dist / initialDist);
-                    // Ограничиваем зум от 1x до 4x
-                    newScale = Math.min(Math.max(newScale, 1), 4);
-                    
-                    lbScale = newScale;
-                    lbImg.style.transform = `scale(${lbScale})`;
-                }
-            }, { passive: false });
-
-            lbWrapper.addEventListener('touchend', () => {
-                if (isPinching) {
-                    isPinching = false;
-                    // Включаем плавность после окончания жеста
-                    lbImg.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-                    if (lbScale < 1) resetZoom();
-                }
-            });
-        });
-
-        function applyZoom(factor) {
-            lbScale *= factor;
-            lbScale = Math.min(Math.max(lbScale, 1), 4);
-            updateLightboxTransform();
-        }
-
-        function resetZoom() {
-            lbScale = 1;
-            updateLightboxTransform();
-        }
-
-        function updateLightboxTransform() {
-            const img = document.getElementById('lb-img');
-            if (img) {
-                img.style.transform = `scale(${lbScale})`;
-                if (!isPinching) {
-                    img.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-                }
-            }
-        }
-
-        // Обновленная функция открытия (сбрасывает зум)
-        function openLightbox() {
-            if (reviewPhotos.length > 0) {
-                document.getElementById('lb-img').src = reviewPhotos[reviewPhotoIndex];
-                resetZoom();
-                document.getElementById('lightbox').classList.add('active');
-            }
-        }
-
-        // Исправленное закрытие
-        function closeLightbox() {
-            document.getElementById('lightbox').classList.remove('active');
-            resetZoom();
         }
     </script>
 </body>
