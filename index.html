@@ -405,19 +405,24 @@
                         'dz_upload': 'Загрузка ДЗ',
                         'dz_approved': 'ДЗ проверено ✅',
                         'dz_upload_individual': 'Индивидуальное задание сдано',
-                        'penalty': 'Штраф',
                         'streak_day_1': 'Серия 1 день 🔥',
                         'streak_day_2': 'Серия 2 дня 🔥',
                         'streak_day_3': 'Серия 3+ дней 🔥'
                     };
-                    
+                  // Специальная логика для штрафов
+                    let displayReason = reasonMap[item.reason];
+                    if (!displayReason && item.reason.startsWith('penalty:')) {
+                        // Берем текст после "penalty: " 
+                        const penaltyText = item.reason.replace('penalty: ', '');
+                        displayReason = `⚠️ Штраф: ${penaltyText}`;
+                    }                  
                     const li = document.createElement('li');
                     li.className = 'history-item';
                     li.innerHTML = `
                         <div class="hist-info">
-                            <div class="hist-reason">${reasonMap[item.reason] || item.reason}</div>
+                            <div class="hist-reason">${displayReason}</div>
                             <div class="hist-date">${new Date(item.created_at).toLocaleDateString('ru-RU')}</div>
-                        </div>
+                        </div>                        
                         <div class="hist-amount ${isPositive ? 'hist-positive' : 'hist-negative'}">
                             ${isPositive ? '+' : ''}${item.change_amount}
                         </div>
