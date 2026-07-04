@@ -159,9 +159,11 @@
         .warning-text { color: var(--danger); font-size: 13px; margin-top: 10px; text-align: center; }
 
         /* Lightbox */
-        #lightbox { display: none; position: fixed; inset: 0; background: black; z-index: 3000; touch-action: none; }
+        #lightbox { display: none; position: fixed; inset: 0; background: black; z-index: 3000; touch-action: none; overflow: hidden; }
         #lightbox.active { display: block; }
-        #lb-img { width: 100%; height: 100%; object-fit: contain; transform-origin: center center; }
+        #lb-img { width: 100%; height: 100%; object-fit: contain; transform-origin: center center; will-change: transform; user-select: none; -webkit-user-drag: none; }
+        #lb-img.can-pan { cursor: grab; }
+        #lb-img.can-pan.dragging { cursor: grabbing; }
         .lb-close { position: absolute; top: calc(20px + var(--safe-top)); right: 20px; color: white; font-size: 30px; background: rgba(0,0,0,0.5); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; border: none; z-index: 3001; pointer-events: auto; }
 
         /* Адаптив для мобильных */
@@ -311,11 +313,19 @@
         let reviewPhotos = [];
         let reviewPhotoIndex = 0;
 
-        // Переменные для зума (ОБЪЕДИНЕНЫ В ОДИН БЛОК)
+        // Переменные для зума и перетаскивания lightbox
         let lbScale = 1;
+        let lbPanX = 0;
+        let lbPanY = 0;
         let initialDist = 0;
         let initialScale = 1;
         let isPinching = false;
+        let isDragging = false;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let panStartX = 0;
+        let panStartY = 0;
+        let didDrag = false;
 
         // Инициализация
         document.addEventListener('DOMContentLoaded', () => {
@@ -342,7 +352,7 @@
             nextMonday.setDate(nextMonday.getDate() + (1 + 7 - nextMonday.getDay()) % 7 || 7);
             document.getElementById('activation-date').value = nextMonday.toISOString().split('T')[0];
 
-            // === ЛОГИКА ЗУМА ДЛЯ LIGHTBOX (ОБЪЕДИНЕННАЯ) ===
+            // === ЗУМ И ПЕРЕТАСКИВАНИЕ ДЛЯ LIGHTBOX ===
             const lbImg = document.getElementById('lb-img');
             const lbWrapper = document.getElementById('lightbox');
 
@@ -353,17 +363,60 @@
                 applyZoom(delta);
             }, { passive: false });
 
-            // 2. Плавный тач-зум (Телефон)
+            // 2. Перетаскивание мышью (ПК)
+            lbImg.addEventListener('mousedown', (e) => {
+                if (lbScale <= 1 || e.button !== 0) return;
+                e.preventDefault();
+                isDragging = true;
+                didDrag = false;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                panStartX = lbPanX;
+                panStartY = lbPanY;
+                lbImg.classList.add('dragging');
+                lbImg.style.transition = 'none';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const dx = e.clientX - dragStartX;
+                const dy = e.clientY - dragStartY;
+                if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag = true;
+                lbPanX = panStartX + dx;
+                lbPanY = panStartY + dy;
+                constrainPan();
+                updateLightboxTransform();
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (!isDragging) return;
+                isDragging = false;
+                lbImg.classList.remove('dragging');
+                lbImg.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                if (didDrag) setTimeout(() => { didDrag = false; }, 150);
+            });
+
+            // 3. Тач: зум двумя пальцами и перетаскивание одним при зуме
             lbWrapper.addEventListener('touchstart', (e) => {
                 if (e.touches.length === 2) {
                     e.preventDefault();
                     isPinching = true;
+                    isDragging = false;
                     initialDist = Math.hypot(
                         e.touches[0].pageX - e.touches[1].pageX,
                         e.touches[0].pageY - e.touches[1].pageY
                     );
                     initialScale = lbScale;
-                    lbImg.style.transition = 'none'; 
+                    lbImg.style.transition = 'none';
+                } else if (e.touches.length === 1 && lbScale > 1) {
+                    isDragging = true;
+                    didDrag = false;
+                    dragStartX = e.touches[0].clientX;
+                    dragStartY = e.touches[0].clientY;
+                    panStartX = lbPanX;
+                    panStartY = lbPanY;
+                    lbImg.style.transition = 'none';
                 }
             }, { passive: false });
 
@@ -374,12 +427,24 @@
                         e.touches[0].pageX - e.touches[1].pageX,
                         e.touches[0].pageY - e.touches[1].pageY
                     );
-                    
-                    let newScale = initialScale * (dist / initialDist);
-                    newScale = Math.min(Math.max(newScale, 1), 4);
-                    
-                    lbScale = newScale;
-                    lbImg.style.transform = `scale(${lbScale})`;
+
+                    lbScale = Math.min(Math.max(initialScale * (dist / initialDist), 1), 4);
+                    if (lbScale <= 1) {
+                        lbPanX = 0;
+                        lbPanY = 0;
+                    } else {
+                        constrainPan();
+                    }
+                    updateLightboxTransform();
+                } else if (isDragging && e.touches.length === 1 && lbScale > 1) {
+                    e.preventDefault();
+                    const dx = e.touches[0].clientX - dragStartX;
+                    const dy = e.touches[0].clientY - dragStartY;
+                    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag = true;
+                    lbPanX = panStartX + dx;
+                    lbPanY = panStartY + dy;
+                    constrainPan();
+                    updateLightboxTransform();
                 }
             }, { passive: false });
 
@@ -387,7 +452,13 @@
                 if (isPinching) {
                     isPinching = false;
                     lbImg.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-                    if (lbScale < 1) resetZoom();
+                    if (lbScale <= 1) resetZoom();
+                    else constrainPan();
+                }
+                if (isDragging) {
+                    isDragging = false;
+                    lbImg.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+                    if (didDrag) setTimeout(() => { didDrag = false; }, 150);
                 }
             });
         });
@@ -395,19 +466,51 @@
         function applyZoom(factor) {
             lbScale *= factor;
             lbScale = Math.min(Math.max(lbScale, 1), 4);
+            if (lbScale <= 1) {
+                lbPanX = 0;
+                lbPanY = 0;
+            } else {
+                constrainPan();
+            }
             updateLightboxTransform();
         }
 
         function resetZoom() {
             lbScale = 1;
+            lbPanX = 0;
+            lbPanY = 0;
+            didDrag = false;
             updateLightboxTransform();
+        }
+
+        function constrainPan() {
+            if (lbScale <= 1) {
+                lbPanX = 0;
+                lbPanY = 0;
+                return;
+            }
+            const wrapper = document.getElementById('lightbox');
+            const img = document.getElementById('lb-img');
+            if (!wrapper || !img || !img.naturalWidth) return;
+
+            const vw = wrapper.clientWidth;
+            const vh = wrapper.clientHeight;
+            const ratio = Math.min(vw / img.naturalWidth, vh / img.naturalHeight);
+            const baseW = img.naturalWidth * ratio;
+            const baseH = img.naturalHeight * ratio;
+            const maxX = Math.max(0, (baseW * lbScale - vw) / 2);
+            const maxY = Math.max(0, (baseH * lbScale - vh) / 2);
+
+            lbPanX = Math.min(maxX, Math.max(-maxX, lbPanX));
+            lbPanY = Math.min(maxY, Math.max(-maxY, lbPanY));
         }
 
         function updateLightboxTransform() {
             const img = document.getElementById('lb-img');
             if (img) {
-                img.style.transform = `scale(${lbScale})`;
-                if (!isPinching) {
+                img.style.transform = `translate(${lbPanX}px, ${lbPanY}px) scale(${lbScale})`;
+                img.classList.toggle('can-pan', lbScale > 1);
+                if (!isPinching && !isDragging) {
                     img.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
                 }
             }
@@ -571,6 +674,7 @@
         }
 
         function closeLightbox() {
+            if (didDrag || isDragging) return;
             document.getElementById('lightbox').classList.remove('active');
             resetZoom();
         }
