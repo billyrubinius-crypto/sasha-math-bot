@@ -800,6 +800,12 @@
             } catch(e) { alert('Ошибка: ' + e.message); }
         }
 
+        function addDaysToDate(dateStr, days) {
+            const d = new Date(dateStr + 'T00:00:00');
+            d.setDate(d.getDate() + days);
+            return d.toISOString().split('T')[0];
+        }
+
         async function scheduleWeek() {
             const date = document.getElementById('activation-date').value;
             if (!date) return alert('Выберите дату активации!');
@@ -835,10 +841,11 @@
             const bulkInsert = [];
             students.forEach(stu => {
                 assignments.forEach(asn => {
+                    const asnDate = asn.day_of_week ? addDaysToDate(date, asn.day_of_week - 1) : date;
                     bulkInsert.push({
                         student_id: stu.telegram_id,
                         ...asn,
-                        scheduled_date: date,
+                        scheduled_date: asnDate,
                         activation_status: 'scheduled',
                         week_label: date,
                         status: 'assigned'
