@@ -314,7 +314,12 @@
         const PASS = 'sasha2024';
 
         let db, currentSubmissionId = null, selectedPenalty = -20, studentsList = [];
-        let currentCheckView = 'pending'; 
+        let currentCheckView = 'pending';
+
+        // Текущая дата в Москве (YYYY-MM-DD), не зависит от часового пояса устройства учителя
+        function getTodayMSK() {
+            return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+        }
 
         // Переменные для навигации по фото внутри модального окна
         let reviewPhotos = [];
@@ -354,10 +359,12 @@
                     </div>`;
             });
 
-            // Установка даты активации по умолчанию
-            const nextMonday = new Date();
-            nextMonday.setDate(nextMonday.getDate() + (1 + 7 - nextMonday.getDay()) % 7 || 7);
-            document.getElementById('activation-date').value = nextMonday.toISOString().split('T')[0];
+            // Установка даты активации по умолчанию (следующий понедельник по московскому времени)
+            const todayMSKStr = getTodayMSK();
+            const [ny, nm, nd] = todayMSKStr.split('-').map(Number);
+            const todayWeekday = new Date(Date.UTC(ny, nm - 1, nd)).getUTCDay();
+            const daysUntilNextMonday = (1 + 7 - todayWeekday) % 7 || 7;
+            document.getElementById('activation-date').value = addDaysToDate(todayMSKStr, daysUntilNextMonday);
 
             // === ЗУМ И ПЕРЕТАСКИВАНИЕ ДЛЯ LIGHTBOX ===
             const lbImg = document.getElementById('lb-img');
@@ -721,8 +728,8 @@
         }
 
         async function processStreak(studentId) {
-            const todayMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"})).toISOString().split('T')[0];
-            
+            const todayMSK = getTodayMSK();
+
             const { data: student } = await db.from('students').select('current_streak, last_submission_date_msk, huikons').eq('telegram_id', studentId).single();
             
             let newStreak = 1;
@@ -732,7 +739,7 @@
                 newStreak = student.current_streak;
                 reward = 0;
             } else {
-                const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+                const yesterday = addDaysToDate(todayMSK, -1);
                 if (student.last_submission_date_msk === yesterday) {
                     newStreak = student.current_streak + 1;
                 }

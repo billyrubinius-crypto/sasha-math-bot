@@ -282,6 +282,16 @@
 
         function log(msg) { console.log(msg); const d=document.getElementById('debug'); if(d) d.innerText += msg+'\n'; }
 
+        // Текущая дата в Москве (YYYY-MM-DD), не зависит от часового пояса устройства ученика
+        function getTodayMSK() {
+            return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
+        }
+
+        // Момент времени, соответствующий указанным часам/минутам по московскому времени (МСК = UTC+3 круглый год)
+        function moscowDateTimeToInstant(y, m, d, hh, mm) {
+            return new Date(Date.UTC(y, m - 1, d, hh, mm) - 3 * 60 * 60 * 1000);
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const tg = window.Telegram.WebApp;
@@ -327,7 +337,7 @@
 
         // --- АКТИВАЦИЯ ЗАДАНИЙ (АВТОПИЛОТ) ---
         async function checkAndActivateAssignments() {
-            const todayMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"})).toISOString().split('T')[0];
+            const todayMSK = getTodayMSK();
             
             // Ищем запланированные задания для текущего пользователя, срок которых настал
             const { data: toActivate, error } = await db
@@ -562,7 +572,7 @@
             if (!assignment) return;
 
             let rewardPoints = 5; // Базовая награда
-            const nowMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"}));
+            const nowInstant = new Date();
             let deadlineMSK = null;
 
             // Определяем награду и дедлайн в зависимости от типа
@@ -571,29 +581,29 @@
                 deadlineMSK = null; // Без дедлайна (или можно поставить через месяц)
             } else if (assignment.type === 'weekly') {
                 rewardPoints = 30; // Еженедельное самое ценное
-                const currentDay = nowMSK.getDay(); 
+                const [ty, tm, td] = getTodayMSK().split('-').map(Number);
+                const currentDay = new Date(Date.UTC(ty, tm - 1, td)).getUTCDay();
                 let daysUntilMonday = (1 - currentDay + 7) % 7;
-                if (daysUntilMonday === 0) daysUntilMonday = 7; 
-                deadlineMSK = new Date(nowMSK.getTime() + daysUntilMonday * 86400000);
-                deadlineMSK.setHours(0, 0, 0, 0);
+                if (daysUntilMonday === 0) daysUntilMonday = 7;
+                const monday = new Date(Date.UTC(ty, tm - 1, td + daysUntilMonday));
+                deadlineMSK = moscowDateTimeToInstant(monday.getUTCFullYear(), monday.getUTCMonth() + 1, monday.getUTCDate(), 0, 0);
             } else {
                 // Ежедневное
                 rewardPoints = 5;
                 let dateStr = assignment.scheduled_date;
                 if (!dateStr) {
-                     status.innerText = "⚠️ Ошибка даты задания"; return; 
+                     status.innerText = "⚠️ Ошибка даты задания"; return;
                 }
                 if (dateStr instanceof Date) dateStr = dateStr.toISOString().split('T')[0];
                 else if (typeof dateStr === 'string' && dateStr.includes('T')) dateStr = dateStr.split('T')[0];
 
                 const [year, month, day] = dateStr.split('-').map(Number);
-                deadlineMSK = new Date(year, month - 1, day, 23, 59, 0); 
-                deadlineMSK.setMinutes(deadlineMSK.getMinutes() + 2); 
+                deadlineMSK = moscowDateTimeToInstant(year, month, day, 23, 61); // 23:59 МСК + 2 минуты буфера
             }
 
             // Проверка дедлайна (только если он установлен)
-            if (deadlineMSK && nowMSK > deadlineMSK) {
-                status.innerText = `⏰ Время вышло! Дедлайн: ${deadlineMSK.toLocaleString('ru-RU')} МСК`;
+            if (deadlineMSK && nowInstant > deadlineMSK) {
+                status.innerText = `⏰ Время вышло! Дедлайн: ${deadlineMSK.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })} МСК`;
                 status.style.color = "#f44336";
                 return;
             }
