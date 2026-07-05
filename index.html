@@ -453,9 +453,11 @@
                     .order('created_at', { ascending: true });
 
                 if (error) throw error;
-                
-                activeAssignments = data || [];
-                
+
+                // Ежедневное задание доступно только в свой день (по МСК) — просроченные больше не показываем
+                const todayMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"})).toISOString().split('T')[0];
+                activeAssignments = (data || []).filter(a => a.type !== 'daily' || a.scheduled_date === todayMSK);
+
                 if (activeAssignments.length === 0) {
                     select.innerHTML = '<option value="">Нет активных заданий 🕊️</option>';
                     select.disabled = true;
