@@ -40,7 +40,13 @@
             width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
             font-size: 16px; font-weight: bold; color: var(--tg-link); background: rgba(36,129,204,0.1);
         }
-        .user-name { font-size: 16px; font-weight: 700; margin: 0; text-align: left; }
+        .user-name { font-size: 16px; font-weight: 700; margin: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .group-badge {
+            display: inline-block; flex-shrink: 0; margin-left: auto;
+            background: var(--tg-secondary); color: var(--tg-hint);
+            padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 600;
+        }
+        .group-badge.assigned { background: rgba(36,129,204,0.12); color: var(--tg-link); }
         .streak-badge {
             display: inline-block; background: #ff9800; color: white;
             padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-bottom: 12px;
@@ -179,8 +185,6 @@
         }
         .nav-btn.active { color: var(--tg-link); }
         .nav-icon { font-size: 22px; margin-bottom: 3px; }
-
-        #debug { font-size: 10px; color: red; margin-top: 20px; white-space: pre-wrap; word-break: break-all; opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -190,6 +194,7 @@
         <div class="profile-header">
             <div class="avatar-container" id="user-avatar-container"></div>
             <h2 class="user-name" id="user-name">Загрузка...</h2>
+            <div class="group-badge" id="group-badge" style="display:none;"></div>
         </div>
 
         <div id="streak-display" class="streak-badge" style="display:none;">🔥 0 дней</div>
@@ -298,8 +303,6 @@
         </button>
     </div>
 
-    <div id="debug"></div>
-
     <script>
         // --- КОНФИГУРАЦИЯ ---
         const SUPABASE_URL = 'https://lchsrbwfmhblitxdmsfc.supabase.co';
@@ -314,7 +317,7 @@
         let selectedFiles = [];
         let activeAssignments = [];
 
-        function log(msg) { console.log(msg); const d=document.getElementById('debug'); if(d) d.innerText += msg+'\n'; }
+        function log(msg) { console.log(msg); }
 
         // Текущая дата в Москве (YYYY-MM-DD), не зависит от часового пояса устройства ученика
         function getTodayMSK() {
@@ -416,7 +419,18 @@
                 document.getElementById('val-rating').innerText = data.rating;
                 document.getElementById('val-huikons').innerText = data.huikons;
                 document.getElementById('val-lives').innerText = '❤️'.repeat(data.lives);
-                
+
+                // Отображение группы
+                const groupBadge = document.getElementById('group-badge');
+                groupBadge.style.display = 'inline-block';
+                if (data.group_name) {
+                    groupBadge.innerText = data.group_name;
+                    groupBadge.classList.add('assigned');
+                } else {
+                    groupBadge.innerText = 'Без группы';
+                    groupBadge.classList.remove('assigned');
+                }
+
                 // Отображение стрика
                 const streakEl = document.getElementById('streak-display');
                 if (data.current_streak > 0) {
@@ -517,8 +531,8 @@
         function renderMockChart(container, points) {
             mockExamPoints = points;
 
-            const W = 320, H = 200;
-            const padL = 32, padR = 12, padT = 14, padB = 34;
+            const W = 320, H = 140;
+            const padL = 32, padR = 12, padT = 10, padB = 26;
             const plotW = W - padL - padR;
             const plotH = H - padT - padB;
 
