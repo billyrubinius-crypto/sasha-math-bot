@@ -29,32 +29,53 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         /* Профиль */
-        .profile-header { text-align: center; margin-bottom: 30px; padding-top: 10px; }
-        .avatar-container { 
-            width: 90px; height: 90px; border-radius: 50%; margin: 0 auto 15px; 
+        .profile-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; padding-top: 10px; }
+        .avatar-container {
+            width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
             background: var(--tg-secondary); overflow: hidden; position: relative;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
         .avatar-img { width: 100%; height: 100%; object-fit: cover; }
-        .avatar-placeholder { 
-            width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; 
-            font-size: 36px; font-weight: bold; color: var(--tg-link); background: rgba(36,129,204,0.1);
+        .avatar-placeholder {
+            width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
+            font-size: 22px; font-weight: bold; color: var(--tg-link); background: rgba(36,129,204,0.1);
         }
-        .user-name { font-size: 22px; font-weight: 700; margin: 0; }
-        .streak-badge { 
-            display: inline-block; background: #ff9800; color: white; 
-            padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-top: 5px;
+        .user-name { font-size: 20px; font-weight: 700; margin: 0; text-align: left; }
+        .streak-badge {
+            display: inline-block; background: #ff9800; color: white;
+            padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-bottom: 12px;
         }
 
+        /* Прогресс стрика */
+        .streak-dots { display: flex; gap: 8px; margin-bottom: 6px; }
+        .streak-dot { flex: 1; text-align: center; padding: 6px 0; border-radius: 10px; background: var(--tg-secondary); font-size: 12px; font-weight: 700; color: var(--tg-hint); }
+        .streak-dot.filled { background: #ff9800; color: white; }
+        .streak-note { font-size: 12px; color: var(--tg-hint); text-align: center; }
+
+        /* Сводка заданий */
+        .assignments-summary { background: var(--tg-secondary); border-radius: 16px; padding: 18px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .summary-title { font-weight: 700; font-size: 14px; margin-bottom: 12px; }
+        .summary-row { display: flex; justify-content: space-between; text-align: center; }
+        .summary-item { flex: 1; }
+        .summary-count { display: block; font-size: 22px; font-weight: 800; color: var(--tg-link); }
+        .summary-label { display: block; font-size: 11px; opacity: 0.7; margin-top: 4px; }
+        .summary-empty { text-align: center; padding: 10px; opacity: 0.6; font-size: 14px; }
+
+        /* График пробников */
+        .mock-chart-section { background: var(--tg-secondary); border-radius: 16px; padding: 18px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .chart-title { font-weight: 700; font-size: 14px; margin-bottom: 12px; }
+        .chart-empty { text-align: center; padding: 20px 10px; opacity: 0.6; font-size: 14px; }
+        .exam-info-box { margin-top: 10px; text-align: center; font-size: 13px; padding: 8px; background: var(--tg-bg); border-radius: 10px; min-height: 18px; }
+
         .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
-        .stat-card { background: var(--tg-secondary); border-radius: 16px; padding: 18px 10px; text-align: center; }
+        .stat-card { background: var(--tg-secondary); border-radius: 16px; padding: 18px 10px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .stat-val { font-size: 26px; font-weight: 800; color: var(--tg-link); margin-bottom: 6px; }
         .stat-label { font-size: 11px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px; }
 
         /* История баланса */
         .history-section { margin-top: 20px; }
         .history-title { font-size: 18px; font-weight: bold; margin-bottom: 15px; }
-        .history-list { list-style: none; padding: 0; margin: 0; background: var(--tg-secondary); border-radius: 16px; overflow: hidden; }
+        .history-list { list-style: none; padding: 0; margin: 0; background: var(--tg-secondary); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .history-item { 
             display: flex; justify-content: space-between; align-items: center; 
             padding: 14px 16px; border-bottom: 1px solid rgba(128,128,128,0.1); 
@@ -169,7 +190,20 @@
         <div class="profile-header">
             <div class="avatar-container" id="user-avatar-container"></div>
             <h2 class="user-name" id="user-name">Загрузка...</h2>
-            <div id="streak-display" class="streak-badge" style="display:none;">🔥 0 дней</div>
+        </div>
+
+        <div id="streak-display" class="streak-badge" style="display:none;">🔥 0 дней</div>
+        <div id="streak-progress" class="streak-progress" style="display:none; margin-bottom:20px;"></div>
+
+        <div class="assignments-summary" id="assignments-summary">
+            <div class="summary-empty">Загрузка...</div>
+        </div>
+
+        <div class="mock-chart-section" id="mock-chart-section">
+            <div class="chart-title">📊 Результаты пробников</div>
+            <div id="mock-chart-container">
+                <div class="chart-empty">Загрузка...</div>
+            </div>
         </div>
 
         <div class="stats-grid">
@@ -391,11 +425,147 @@
                 } else {
                     streakEl.style.display = 'none';
                 }
+                renderStreakProgress(data.current_streak);
 
                 currentUser.stats = data;
                 loadBalanceHistory();
+                loadAssignmentsSummary();
+                loadMockExamChart();
 
             } catch (e) { log('❌ Ошибка профиля: ' + e.message); }
+        }
+
+        // Мини-индикатор прогресса стрика: 3 уровня награды (5 / 10 / 15 хуиконов за 1/2/3+ дня подряд)
+        function renderStreakProgress(streak) {
+            const el = document.getElementById('streak-progress');
+            if (!streak || streak <= 0) { el.style.display = 'none'; return; }
+
+            const tiers = [5, 10, 15];
+            const filled = Math.min(streak, 3);
+            const dots = tiers.map((val, i) => `<div class="streak-dot ${i < filled ? 'filled' : ''}">${val}</div>`).join('');
+            const note = streak >= 3 ? 'Максимальный уровень награды 🔥' : `Ещё ${3 - streak} дн. до максимальной награды`;
+
+            el.innerHTML = `<div class="streak-dots">${dots}</div><div class="streak-note">${note}</div>`;
+            el.style.display = 'block';
+        }
+
+        // --- СВОДКА ПО ДОСТУПНЫМ ЗАДАНИЯМ (для экрана профиля) ---
+        async function loadAssignmentsSummary() {
+            const el = document.getElementById('assignments-summary');
+            try {
+                const { data, error } = await db
+                    .from('assignments')
+                    .select('type, scheduled_date')
+                    .eq('student_id', currentUser.id)
+                    .eq('status', 'assigned')
+                    .eq('activation_status', 'active');
+
+                if (error) throw error;
+
+                const todayMSK = getTodayMSK();
+                const relevant = (data || []).filter(a => a.type !== 'daily' || a.scheduled_date === todayMSK);
+
+                if (relevant.length === 0) {
+                    el.innerHTML = `<div class="summary-empty">🕊️ Нет активных заданий</div>`;
+                    return;
+                }
+
+                const counts = { daily: 0, weekly: 0, individual: 0 };
+                relevant.forEach(a => { if (counts[a.type] !== undefined) counts[a.type]++; });
+
+                el.innerHTML = `
+                    <div class="summary-title">📋 Доступные задания</div>
+                    <div class="summary-row">
+                        <div class="summary-item"><span class="summary-count">${counts.daily}</span><span class="summary-label">📅 Ежедневные</span></div>
+                        <div class="summary-item"><span class="summary-count">${counts.weekly}</span><span class="summary-label">🔥 Еженедельное</span></div>
+                        <div class="summary-item"><span class="summary-count">${counts.individual}</span><span class="summary-label">🎯 Индивидуальные</span></div>
+                    </div>
+                `;
+            } catch (e) {
+                el.innerHTML = `<div class="summary-empty" style="color:#f44336;">Ошибка загрузки заданий</div>`;
+                log(e.message);
+            }
+        }
+
+        // --- ГРАФИК РЕЗУЛЬТАТОВ ПРОБНИКОВ ---
+        let mockExamPoints = [];
+
+        async function loadMockExamChart() {
+            const container = document.getElementById('mock-chart-container');
+            try {
+                const { data, error } = await db
+                    .from('mock_exam_results')
+                    .select('exam_name, score, created_at')
+                    .eq('student_id', currentUser.id)
+                    .order('created_at', { ascending: true });
+
+                if (error) throw error;
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = `<div class="chart-empty">🧮 Пока нет результатов пробников</div>`;
+                    return;
+                }
+
+                renderMockChart(container, data);
+            } catch (e) {
+                container.innerHTML = `<div class="chart-empty" style="color:#f44336;">Ошибка загрузки графика</div>`;
+                log(e.message);
+            }
+        }
+
+        // Свой SVG-график без внешних библиотек: точка = один пробник, ось X — название пробника (в порядке синхронизации)
+        function renderMockChart(container, points) {
+            mockExamPoints = points;
+
+            const W = 320, H = 200;
+            const padL = 32, padR = 12, padT = 14, padB = 34;
+            const plotW = W - padL - padR;
+            const plotH = H - padT - padB;
+
+            const scores = points.map(p => Number(p.score) || 0);
+            const maxScore = Math.max(20, Math.ceil(Math.max(...scores) / 10) * 10);
+
+            const xFor = (i) => points.length > 1 ? padL + (plotW * i / (points.length - 1)) : padL + plotW / 2;
+            const yFor = (v) => padT + plotH - (plotH * v / maxScore);
+
+            const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => {
+                const y = padT + plotH * (1 - f);
+                const val = Math.round(maxScore * f);
+                return `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="rgba(128,128,128,0.15)" stroke-width="1"/>
+                        <text x="${padL - 6}" y="${y + 4}" font-size="9" text-anchor="end" fill="var(--tg-hint)">${val}</text>`;
+            }).join('');
+
+            const linePoints = points.map((p, i) => `${xFor(i)},${yFor(Number(p.score) || 0)}`).join(' ');
+
+            const dots = points.map((p, i) => {
+                const x = xFor(i), y = yFor(Number(p.score) || 0);
+                return `<circle cx="${x}" cy="${y}" r="5" fill="var(--tg-link)" stroke="var(--tg-bg)" stroke-width="2" style="cursor:pointer" onclick="showExamInfo(${i})"/>`;
+            }).join('');
+
+            const labels = points.map((p, i) => {
+                const x = xFor(i);
+                const name = p.exam_name || '';
+                const short = name.length > 8 ? name.slice(0, 7) + '…' : name;
+                return `<text x="${x}" y="${H - padB + 16}" font-size="9" text-anchor="middle" fill="var(--tg-hint)">${short}</text>`;
+            }).join('');
+
+            container.innerHTML = `
+                <svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto; display:block;">
+                    ${gridLines}
+                    <polyline points="${linePoints}" fill="none" stroke="var(--tg-link)" stroke-width="1.5" opacity="0.4"/>
+                    ${dots}
+                    ${labels}
+                </svg>
+                <div id="exam-info-box" class="exam-info-box">Нажми на точку, чтобы увидеть детали</div>
+            `;
+        }
+
+        function showExamInfo(index) {
+            const p = mockExamPoints[index];
+            const box = document.getElementById('exam-info-box');
+            if (!p || !box) return;
+            const date = p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '—';
+            box.innerHTML = `<b>${p.exam_name || 'Пробник'}</b> • ${p.score} баллов • синхронизировано ${date}`;
         }
 
         async function loadBalanceHistory() {
@@ -411,7 +581,7 @@
                 if (error) throw error;
                 
                 if (!data || data.length === 0) {
-                    list.innerHTML = '<li style="text-align:center; padding:20px; opacity:0.5;">История пуста</li>';
+                    list.innerHTML = '<li style="text-align:center; padding:20px; opacity:0.5;">📭 История пока пуста</li>';
                     return;
                 }
                 
@@ -471,7 +641,7 @@
                 if (error) throw error;
 
                 // Ежедневное задание доступно только в свой день (по МСК) — просроченные больше не показываем
-                const todayMSK = new Date(new Date().toLocaleString("en-US", {timeZone: "Europe/Moscow"})).toISOString().split('T')[0];
+                const todayMSK = getTodayMSK();
                 activeAssignments = (data || []).filter(a => a.type !== 'daily' || a.scheduled_date === todayMSK);
 
                 if (activeAssignments.length === 0) {
