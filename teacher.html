@@ -801,9 +801,12 @@
         }
 
         function addDaysToDate(dateStr, days) {
-            const d = new Date(dateStr + 'T00:00:00');
-            d.setDate(d.getDate() + days);
-            return d.toISOString().split('T')[0];
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const result = new Date(Date.UTC(y, m - 1, d + days));
+            const yy = result.getUTCFullYear();
+            const mm = String(result.getUTCMonth() + 1).padStart(2, '0');
+            const dd = String(result.getUTCDate()).padStart(2, '0');
+            return `${yy}-${mm}-${dd}`;
         }
 
         async function scheduleWeek() {
