@@ -31,16 +31,16 @@
         /* Профиль */
         .profile-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; padding-top: 10px; }
         .avatar-container {
-            width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+            width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
             background: var(--tg-secondary); overflow: hidden; position: relative;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
         .avatar-img { width: 100%; height: 100%; object-fit: cover; }
         .avatar-placeholder {
             width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;
-            font-size: 22px; font-weight: bold; color: var(--tg-link); background: rgba(36,129,204,0.1);
+            font-size: 16px; font-weight: bold; color: var(--tg-link); background: rgba(36,129,204,0.1);
         }
-        .user-name { font-size: 20px; font-weight: 700; margin: 0; text-align: left; }
+        .user-name { font-size: 16px; font-weight: 700; margin: 0; text-align: left; }
         .streak-badge {
             display: inline-block; background: #ff9800; color: white;
             padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-bottom: 12px;
@@ -199,17 +199,17 @@
             <div class="summary-empty">Загрузка...</div>
         </div>
 
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-val" id="val-rating">-</div><div class="stat-label">Рейтинг</div></div>
+            <div class="stat-card"><div class="stat-val" id="val-huikons">-</div><div class="stat-label">Хуиконы</div></div>
+            <div class="stat-card"><div class="stat-val" id="val-lives">-</div><div class="stat-label">Жизни</div></div>
+        </div>
+
         <div class="mock-chart-section" id="mock-chart-section">
             <div class="chart-title">📊 Результаты пробников</div>
             <div id="mock-chart-container">
                 <div class="chart-empty">Загрузка...</div>
             </div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card"><div class="stat-val" id="val-rating">-</div><div class="stat-label">Рейтинг</div></div>
-            <div class="stat-card"><div class="stat-val" id="val-huikons">-</div><div class="stat-label">Хуиконы</div></div>
-            <div class="stat-card"><div class="stat-val" id="val-lives">-</div><div class="stat-label">Жизни</div></div>
         </div>
 
         <div class="history-section">
@@ -264,8 +264,8 @@
             </div>
             
             <div style="margin-top: 20px; text-align: center; opacity: 0.6; font-size: 13px;">
-                Загрузка: +5 Хуиконов сразу<br>
-                После проверки учителем: +10 Хуиконов
+                Хуиконы начисляются сразу за загрузку и ещё раз — после проверки учителем.<br>
+                Размер награды зависит от типа задания.
             </div>
         </div>
 
@@ -523,14 +523,18 @@
             const plotH = H - padT - padB;
 
             const scores = points.map(p => Number(p.score) || 0);
-            const maxScore = Math.max(20, Math.ceil(Math.max(...scores) / 10) * 10);
+            const minScore = 40;
+            const maxScore = Math.max(minScore + 20, Math.ceil(Math.max(...scores) / 10) * 10);
 
             const xFor = (i) => points.length > 1 ? padL + (plotW * i / (points.length - 1)) : padL + plotW / 2;
-            const yFor = (v) => padT + plotH - (plotH * v / maxScore);
+            const yFor = (v) => {
+                const y = padT + plotH - (plotH * (v - minScore) / (maxScore - minScore));
+                return Math.min(padT + plotH, Math.max(padT, y));
+            };
 
             const gridLines = [0, 0.25, 0.5, 0.75, 1].map(f => {
                 const y = padT + plotH * (1 - f);
-                const val = Math.round(maxScore * f);
+                const val = Math.round(minScore + (maxScore - minScore) * f);
                 return `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="rgba(128,128,128,0.15)" stroke-width="1"/>
                         <text x="${padL - 6}" y="${y + 4}" font-size="9" text-anchor="end" fill="var(--tg-hint)">${val}</text>`;
             }).join('');
@@ -544,9 +548,7 @@
 
             const labels = points.map((p, i) => {
                 const x = xFor(i);
-                const name = p.exam_name || '';
-                const short = name.length > 8 ? name.slice(0, 7) + '…' : name;
-                return `<text x="${x}" y="${H - padB + 16}" font-size="9" text-anchor="middle" fill="var(--tg-hint)">${short}</text>`;
+                return `<text x="${x}" y="${H - padB + 16}" font-size="9" text-anchor="middle" fill="var(--tg-hint)">№${i + 1}</text>`;
             }).join('');
 
             container.innerHTML = `
@@ -565,7 +567,7 @@
             const box = document.getElementById('exam-info-box');
             if (!p || !box) return;
             const date = p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '—';
-            box.innerHTML = `<b>${p.exam_name || 'Пробник'}</b> • ${p.score} баллов • синхронизировано ${date}`;
+            box.innerHTML = `<b>${p.exam_name || 'Пробник'}</b> • ${p.score} баллов • ${date}`;
         }
 
         async function loadBalanceHistory() {
@@ -594,7 +596,9 @@
                         'dz_upload_individual': 'Индивидуальное задание сдано',
                         'streak_day_1': 'Серия 1 день 🔥',
                         'streak_day_2': 'Серия 2 дня 🔥',
-                        'streak_day_3': 'Серия 3+ дней 🔥'
+                        'streak_day_3': 'Серия 3+ дней 🔥',
+                        'weekly_approved': 'Еженедельное принято ✅',
+                        'individual_approved': 'Индивидуальное принято ✅'
                     };
                   // Специальная логика для штрафов
                     let displayReason = reasonMap[item.reason];

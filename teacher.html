@@ -789,8 +789,12 @@
                 }).eq('id', currentSubmissionId);
                 
                 if (status === 'approved') {
-                    const { data: sub } = await db.from('assignments').select('student_id').eq('id', currentSubmissionId).single();
-                    await processStreak(sub.student_id);
+                    const { data: sub } = await db.from('assignments').select('student_id, type').eq('id', currentSubmissionId).single();
+                    if (sub.type === 'daily') {
+                        await processStreak(sub.student_id);
+                    } else {
+                        await awardApprovalBonus(sub.student_id, sub.type);
+                    }
                 }
                 
                 alert(status === 'approved' ? 'Работа принята!' : 'Работа возвращена!');
@@ -834,6 +838,25 @@
                     reason: `streak_day_${newStreak}`
                 }]);
             }
+        }
+
+        // Флат-бонус за приём еженедельного/индивидуального задания (не связан со стриком — тот только для ежедневных)
+        async function awardApprovalBonus(studentId, type) {
+            const bonuses = { weekly: 20, individual: 15 };
+            const reward = bonuses[type];
+            if (!reward) return;
+
+            const { data: student } = await db.from('students').select('huikons').eq('telegram_id', studentId).single();
+
+            await db.from('students').update({
+                huikons: (student.huikons || 0) + reward
+            }).eq('telegram_id', studentId);
+
+            await db.from('balance_history').insert([{
+                student_id: studentId,
+                change_amount: reward,
+                reason: `${type}_approved`
+            }]);
         }
 
         function showPenaltyModal() {
