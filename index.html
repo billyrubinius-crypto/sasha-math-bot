@@ -292,6 +292,12 @@
             return new Date(Date.UTC(y, m - 1, d, hh, mm) - 3 * 60 * 60 * 1000);
         }
 
+        // Ссылка без http(s):// браузер считает относительным путём текущей страницы — достраиваем схему
+        function normalizeUrl(url) {
+            if (!url) return '';
+            return /^https?:\/\//i.test(url) ? url : 'https://' + url;
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const tg = window.Telegram.WebApp;
@@ -507,7 +513,7 @@
                 document.getElementById('detail-title').innerText = assignment.title || 'Без названия';
                 const linkEl = document.getElementById('detail-link');
                 if (assignment.content_url) {
-                    linkEl.href = assignment.content_url;
+                    linkEl.href = normalizeUrl(assignment.content_url);
                     linkEl.style.display = 'inline-block';
                 } else {
                     linkEl.style.display = 'none';

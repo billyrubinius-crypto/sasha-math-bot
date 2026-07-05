@@ -392,6 +392,12 @@
             return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
         }
 
+        // Ссылка без http(s):// браузер считает относительным путём текущей страницы — достраиваем схему
+        function normalizeUrl(url) {
+            if (!url) return '';
+            return /^https?:\/\//i.test(url) ? url : 'https://' + url;
+        }
+
         // Переменные для навигации по фото внутри модального окна
         let reviewPhotos = [];
         let reviewPhotoIndex = 0;
@@ -686,7 +692,7 @@
                     </div>
                     <div class="card-meta">${sub.title || 'Без названия'} • ${new Date(sub.submitted_at || sub.created_at).toLocaleString('ru')}</div>
                     ${currentCheckView === 'archive' ? `<span class="badge ${statusBadge}" style="margin-top:5px;">${statusText}</span>` : ''}
-                    ${sub.content_url ? `<a href="${sub.content_url}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
+                    ${sub.content_url ? `<a href="${normalizeUrl(sub.content_url)}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
                 `;
                 list.appendChild(card);
             });
@@ -702,7 +708,7 @@
             badge.className = `badge badge-${sub.type}`;
             
             document.getElementById('rev-comment-teacher').innerText = sub.teacher_comment || 'Нет комментария от учителя';
-            document.getElementById('rev-link').href = sub.content_url || '#';
+            document.getElementById('rev-link').href = sub.content_url ? normalizeUrl(sub.content_url) : '#';
             document.getElementById('rev-link').style.display = sub.content_url ? 'inline-block' : 'none';
             document.getElementById('rev-feedback').value = sub.teacher_feedback || '';
             
@@ -1062,7 +1068,7 @@
                 .order('week_label', { ascending: true });
 
             if (error) { container.innerHTML = `<div style="color:red; padding:20px;">${error.message}</div>`; return; }
-            renderWeekGroups(container, data, { editable: false, emptyText: 'Нет запланированных недель' });
+            renderWeekGroups(container, data, { editable: true, today, emptyText: 'Нет запланированных недель' });
         }
 
         // --- ТЕКУЩАЯ НЕДЕЛЯ: сегодня попадает в её пн–вс, ещё не наступившие дни редактируемы ---
@@ -1159,7 +1165,7 @@
                                 <span style="font-size:12px; color:#999;">${item.count} уч.</span>
                             </div>
                             <div class="card-meta">${item.title || 'Без названия'}</div>
-                            ${item.content_url ? `<a href="${item.content_url}" target="_blank" class="card-link">🔗 Ссылка</a>` : ''}
+                            ${item.content_url ? `<a href="${normalizeUrl(item.content_url)}" target="_blank" class="card-link">🔗 Ссылка</a>` : ''}
                             ${editButton}
                         </div>
                     `;
@@ -1202,7 +1208,8 @@
                 await query;
                 alert('Изменения сохранены для всех учеников этой недели!');
                 closeGroupEdit();
-                loadCurrentWeek();
+                if (currentPlanSubTab === 'draft') loadDrafts();
+                else if (currentPlanSubTab === 'current') loadCurrentWeek();
             } catch(e) { alert('Ошибка: ' + e.message); }
         }
 
@@ -1229,7 +1236,7 @@
                         <span class="badge badge-individual">Индивидуальное</span>
                     </div>
                     <div class="card-meta">${a.title || 'Без названия'} • ${new Date(a.created_at).toLocaleString('ru')}</div>
-                    ${a.content_url ? `<a href="${a.content_url}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
+                    ${a.content_url ? `<a href="${normalizeUrl(a.content_url)}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
                 </div>
             `).join('');
         }
