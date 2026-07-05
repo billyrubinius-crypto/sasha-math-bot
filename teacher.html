@@ -930,7 +930,8 @@
                         scheduled_date: asnDate,
                         activation_status: 'scheduled',
                         week_label: date,
-                        status: 'assigned'
+                        status: 'assigned',
+                        assigned_group: selectedGroup || 'Все ученики'
                     });
                 });
             });
@@ -1062,7 +1063,7 @@
 
             const today = getTodayMSK();
             const { data, error } = await db.from('assignments')
-                .select('id, week_label, type, day_of_week, title, content_url, teacher_comment, scheduled_date')
+                .select('id, week_label, type, day_of_week, title, content_url, teacher_comment, scheduled_date, assigned_group')
                 .in('type', ['daily', 'weekly'])
                 .gt('week_label', today)
                 .order('week_label', { ascending: true });
@@ -1078,7 +1079,7 @@
 
             const today = getTodayMSK();
             const { data, error } = await db.from('assignments')
-                .select('id, week_label, type, day_of_week, title, content_url, teacher_comment, scheduled_date')
+                .select('id, week_label, type, day_of_week, title, content_url, teacher_comment, scheduled_date, assigned_group')
                 .in('type', ['daily', 'weekly'])
                 .lte('week_label', today)
                 .order('week_label', { ascending: true });
@@ -1099,7 +1100,7 @@
 
             const today = getTodayMSK();
             const { data, error } = await db.from('assignments')
-                .select('id, week_label, type, day_of_week, title, content_url, teacher_comment, scheduled_date')
+                .select('id, week_label, type, day_of_week, title, content_url, teacher_comment, scheduled_date, assigned_group')
                 .eq('type', type)
                 .order('week_label', { ascending: false });
 
@@ -1171,7 +1172,12 @@
                     `;
                 }).join('');
 
-                return `<div style="margin-bottom:20px;"><h4 style="margin-bottom:10px;">Неделя от ${weekLabel}</h4>${itemsHtml}</div>`;
+                const groupLabel = items[itemKeys[0]].assigned_group || 'Группа не указана';
+                return `<div style="margin-bottom:20px;">
+                    <h4 style="margin-bottom:2px;">Неделя от ${weekLabel}</h4>
+                    <div style="font-size:13px; color:#666; margin-bottom:10px;">👥 ${groupLabel}</div>
+                    ${itemsHtml}
+                </div>`;
             }).join('');
         }
 
