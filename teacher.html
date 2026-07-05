@@ -1069,7 +1069,7 @@
                 .order('week_label', { ascending: true });
 
             if (error) { container.innerHTML = `<div style="color:red; padding:20px;">${error.message}</div>`; return; }
-            renderWeekGroups(container, data, { editable: true, today, emptyText: 'Нет запланированных недель' });
+            renderWeekGroups(container, data, { editable: true, deletable: true, today, emptyText: 'Нет запланированных недель' });
         }
 
         // --- ТЕКУЩАЯ НЕДЕЛЯ: сегодня попадает в её пн–вс, ещё не наступившие дни редактируемы ---
@@ -1150,6 +1150,7 @@
                     const canEdit = opts.editable && (item.type === 'weekly' || item.scheduled_date > opts.today);
 
                     let editButton = '';
+                    let deleteButton = '';
                     if (canEdit) {
                         const idx = weekGroupRegistry.length;
                         weekGroupRegistry.push({
@@ -1157,6 +1158,9 @@
                             title: item.title, url: item.content_url, comment: item.teacher_comment
                         });
                         editButton = `<button class="btn-secondary" style="margin-top:8px;" onclick="openEditGroup(${idx})">✏️ Редактировать</button>`;
+                        if (opts.deletable) {
+                            deleteButton = `<button class="btn-danger" style="margin-top:8px; padding:8px;" onclick="deleteGroup(${idx})">🗑️ Удалить</button>`;
+                        }
                     }
 
                     return `
@@ -1168,6 +1172,7 @@
                             <div class="card-meta">${item.title || 'Без названия'}</div>
                             ${item.content_url ? `<a href="${normalizeUrl(item.content_url)}" target="_blank" class="card-link">🔗 Ссылка</a>` : ''}
                             ${editButton}
+                            ${deleteButton}
                         </div>
                     `;
                 }).join('');
@@ -1219,6 +1224,23 @@
             } catch(e) { alert('Ошибка: ' + e.message); }
         }
 
+        async function deleteGroup(idx) {
+            const g = weekGroupRegistry[idx];
+            if (!g) return;
+            if (!confirm('Удалить это задание для всех учеников этой недели? Отменить будет нельзя.')) return;
+
+            let query = db.from('assignments').delete()
+                .eq('week_label', g.weekLabel)
+                .eq('type', g.type);
+            if (g.type === 'daily') query = query.eq('day_of_week', g.dayOfWeek);
+
+            try {
+                await query;
+                alert('Удалено.');
+                loadDrafts();
+            } catch(e) { alert('Ошибка: ' + e.message); }
+        }
+
         // --- АРХИВ ИНДИВИДУАЛЬНЫХ ЗАДАНИЙ ---
         async function loadArchiveIndividual(view) {
             const container = document.getElementById('archive-individual-list');
@@ -1243,8 +1265,18 @@
                     </div>
                     <div class="card-meta">${a.title || 'Без названия'} • ${new Date(a.created_at).toLocaleString('ru')}</div>
                     ${a.content_url ? `<a href="${normalizeUrl(a.content_url)}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
+                    ${view === 'active' ? `<button class="btn-danger" style="margin-top:8px; padding:8px;" onclick="deleteIndividualAssignment('${a.id}')">🗑️ Удалить</button>` : ''}
                 </div>
             `).join('');
+        }
+
+        async function deleteIndividualAssignment(id) {
+            if (!confirm('Удалить это индивидуальное задание? Отменить будет нельзя.')) return;
+            try {
+                await db.from('assignments').delete().eq('id', id);
+                alert('Удалено.');
+                loadArchiveIndividual('active');
+            } catch(e) { alert('Ошибка: ' + e.message); }
         }
     </script>
 </body>
