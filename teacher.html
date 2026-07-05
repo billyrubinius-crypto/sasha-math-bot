@@ -213,7 +213,14 @@
         <div class="week-planner">
             <h3 style="margin-top:0">🗓️ Запланировать следующую неделю</h3>
             <p style="font-size:13px; color:#666; margin-bottom:15px;">Задания станут активными автоматически в 00:00 МСК указанной даты.</p>
-            
+
+            <div style="margin-bottom:15px;">
+                <label style="font-weight:bold; display:block; margin-bottom:5px;">Кому назначить:</label>
+                <select id="week-group" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:16px;">
+                    <option value="">Все ученики</option>
+                </select>
+            </div>
+
             <div id="days-container"></div>
             
             <!-- Блок еженедельного задания -->
@@ -548,12 +555,23 @@
         }
 
         async function loadStudents() {
-            const { data } = await db.from('students').select('telegram_id, name');
+            const { data } = await db.from('students').select('telegram_id, name, group_name');
             studentsList = data || [];
             const select = document.getElementById('indiv-student');
             select.innerHTML = '<option value="">Выберите ученика</option>';
             studentsList.forEach(s => {
                 select.innerHTML += `<option value="${s.telegram_id}">${s.name}</option>`;
+            });
+            populateGroupFilter();
+        }
+
+        function populateGroupFilter() {
+            const select = document.getElementById('week-group');
+            if (!select) return;
+            const groups = [...new Set(studentsList.map(s => s.group_name).filter(Boolean))];
+            select.innerHTML = '<option value="">Все ученики</option>';
+            groups.forEach(g => {
+                select.innerHTML += `<option value="${g}">${g}</option>`;
             });
         }
 
@@ -807,9 +825,12 @@
             }
             
             if (!assignments.length) return alert('Заполните хотя бы одно задание!');
-            
-            const { data: students } = await db.from('students').select('telegram_id');
-            if (!students.length) return alert('Нет учеников в базе!');
+
+            const selectedGroup = document.getElementById('week-group').value;
+            let studentsQuery = db.from('students').select('telegram_id');
+            if (selectedGroup) studentsQuery = studentsQuery.eq('group_name', selectedGroup);
+            const { data: students } = await studentsQuery;
+            if (!students.length) return alert(selectedGroup ? `В группе «${selectedGroup}» нет учеников!` : 'Нет учеников в базе!');
             
             const bulkInsert = [];
             students.forEach(stu => {
@@ -836,6 +857,7 @@
                 document.getElementById('weekly-title').value = '';
                 document.getElementById('weekly-url').value = '';
                 document.getElementById('weekly-comment').value = '';
+                document.getElementById('week-group').value = '';
             } catch(e) { alert('Ошибка: ' + e.message); }
         }
 
