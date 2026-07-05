@@ -355,8 +355,9 @@
                 let { data, error } = await db.from('students').select('*').eq('telegram_id', currentUser.id).single();
                 
                 if (error && error.code === 'PGRST116') {
-                    await db.from('students').insert([{ 
-                        telegram_id: currentUser.id, name: currentUser.first_name, 
+                    await db.from('students').insert([{
+                        telegram_id: currentUser.id, name: currentUser.first_name,
+                        telegram_username: currentUser.username || null,
                         rating: 50, huikons: 0, lives: 3, current_streak: 0
                     }]);
                     return loadProfile();
