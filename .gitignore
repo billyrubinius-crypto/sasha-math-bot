@@ -1,5 +1,7 @@
 main.py
+parent_bot.py
 .claude/
 ARCHITECTURE.md
 GOOGLE_SHEETS_SPEC.md
 PLAN_OF_IMPLEMENTATION.md
+CLAUDE.md

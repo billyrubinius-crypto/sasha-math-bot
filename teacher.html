@@ -239,9 +239,11 @@
 
                 <div style="margin-bottom:15px;">
                     <label style="font-weight:bold; display:block; margin-bottom:5px;">Кому назначить:</label>
-                    <select id="week-group" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:16px;">
-                        <option value="">Все ученики</option>
-                    </select>
+                    <div id="week-group-list" style="display:flex; flex-direction:column; gap:8px; padding:10px; border:1px solid #ddd; border-radius:6px;">
+                        <label style="display:flex; align-items:center; gap:8px; font-weight:600;">
+                            <input type="checkbox" id="week-group-all" checked onchange="onWeekGroupAllChange()"> Все ученики
+                        </label>
+                    </div>
                 </div>
 
                 <div id="days-container"></div>
@@ -645,57 +647,123 @@
         }
 
         function populateGroupFilter() {
-            const select = document.getElementById('week-group');
-            if (!select) return;
-            const groups = [...new Set(studentsList.map(s => s.group_name).filter(Boolean))];
-            select.innerHTML = '<option value="">Все ученики</option>';
+            const container = document.getElementById('week-group-list');
+            if (!container) return;
+            const groups = [...new Set(studentsList.map(s => s.group_name).filter(Boolean))].sort();
+
+            container.querySelectorAll('.week-group-item').forEach(el => el.remove());
             groups.forEach(g => {
-                select.innerHTML += `<option value="${g}">${g}</option>`;
+                const label = document.createElement('label');
+                label.className = 'week-group-item';
+                label.style.cssText = 'display:flex; align-items:center; gap:8px;';
+                label.innerHTML = `<input type="checkbox" class="week-group-checkbox" value="${g}" onchange="onWeekGroupPick()"> ${g}`;
+                container.appendChild(label);
             });
+        }
+
+        // "Все ученики" и конкретные группы взаимоисключающие
+        function onWeekGroupAllChange() {
+            if (document.getElementById('week-group-all').checked) {
+                document.querySelectorAll('.week-group-checkbox').forEach(cb => cb.checked = false);
+            }
+        }
+
+        function onWeekGroupPick() {
+            const anyChecked = [...document.querySelectorAll('.week-group-checkbox')].some(cb => cb.checked);
+            document.getElementById('week-group-all').checked = !anyChecked;
+        }
+
+        function getSelectedWeekGroups() {
+            return [...document.querySelectorAll('.week-group-checkbox:checked')].map(cb => cb.value);
         }
 
         async function loadSubmissions() {
             const list = document.getElementById('submissions-list');
             list.innerHTML = '<div style="text-align:center; padding:40px;">Загрузка...</div>';
-            
-            let query = db.from('assignments').select('*, students(name)').order('submitted_at', { ascending: false });
-            
+
+            let query = db.from('assignments').select('*, students(name, group_name)').order('submitted_at', { ascending: false });
+
             if (currentCheckView === 'pending') {
                 query = query.eq('status', 'submitted');
             } else {
                 query = query.eq('status', 'checked');
             }
-                
+
             const { data, error } = await query;
             if (error) return list.innerHTML = `<div style="color:red; padding:20px">${error.message}</div>`;
-            
+
             if (!data.length) {
                 const msg = currentCheckView === 'pending' ? 'Нет работ на проверку 🎉' : 'Архив пуст';
                 return list.innerHTML = `<div style="text-align:center; padding:40px; color:#999">${msg}</div>`;
             }
-            
+
+            renderGroupedSubmissions(list, data);
+        }
+
+        // Группирует сданные работы по группе ученика, внутри группы — по типу задания
+        const submissionTypeOrder = [
+            { key: 'daily', label: '📅 Ежедневные' },
+            { key: 'weekly', label: '🔥 Еженедельные' },
+            { key: 'individual', label: '🎯 Индивидуальные' }
+        ];
+
+        function renderGroupedSubmissions(list, data) {
             list.innerHTML = '';
+
+            const groups = {};
             data.forEach(sub => {
-                const card = document.createElement('div');
-                card.className = 'submission-card';
-                card.onclick = () => openReview(sub);
-                
-                const typeLabels = { daily: 'Ежедневное', weekly: 'Еженедельное', individual: 'Индивидуальное' };
-                const badgeClass = `badge-${sub.type}`;
-                const statusBadge = sub.approval_status === 'approved' ? 'badge-approved' : 'badge-rejected';
-                const statusText = sub.approval_status === 'approved' ? 'Принято' : 'Возврат';
-                
-                card.innerHTML = `
-                    <div class="card-header">
-                        <span class="student-name">${sub.students?.name || 'Unknown'}</span>
-                        <span class="badge ${badgeClass}">${typeLabels[sub.type]}</span>
-                    </div>
-                    <div class="card-meta">${sub.title || 'Без названия'} • ${new Date(sub.submitted_at || sub.created_at).toLocaleString('ru')}</div>
-                    ${currentCheckView === 'archive' ? `<span class="badge ${statusBadge}" style="margin-top:5px;">${statusText}</span>` : ''}
-                    ${sub.content_url ? `<a href="${normalizeUrl(sub.content_url)}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
-                `;
-                list.appendChild(card);
+                const groupName = sub.students?.group_name || 'Без группы';
+                if (!groups[groupName]) groups[groupName] = {};
+                if (!groups[groupName][sub.type]) groups[groupName][sub.type] = [];
+                groups[groupName][sub.type].push(sub);
             });
+
+            const groupNames = Object.keys(groups).sort((a, b) => {
+                if (a === 'Без группы') return 1;
+                if (b === 'Без группы') return -1;
+                return a.localeCompare(b);
+            });
+
+            groupNames.forEach(groupName => {
+                const groupHeader = document.createElement('h3');
+                groupHeader.style.margin = '20px 0 10px';
+                groupHeader.innerText = `👥 ${groupName}`;
+                list.appendChild(groupHeader);
+
+                submissionTypeOrder.forEach(({ key, label }) => {
+                    const subs = groups[groupName][key];
+                    if (!subs || !subs.length) return;
+
+                    const typeHeader = document.createElement('div');
+                    typeHeader.style.cssText = 'font-size:13px; font-weight:600; color:#666; margin:10px 0 6px;';
+                    typeHeader.innerText = `${label} (${subs.length})`;
+                    list.appendChild(typeHeader);
+
+                    subs.forEach(sub => list.appendChild(buildSubmissionCard(sub)));
+                });
+            });
+        }
+
+        function buildSubmissionCard(sub) {
+            const card = document.createElement('div');
+            card.className = 'submission-card';
+            card.onclick = () => openReview(sub);
+
+            const typeLabels = { daily: 'Ежедневное', weekly: 'Еженедельное', individual: 'Индивидуальное' };
+            const badgeClass = `badge-${sub.type}`;
+            const statusBadge = sub.approval_status === 'approved' ? 'badge-approved' : 'badge-rejected';
+            const statusText = sub.approval_status === 'approved' ? 'Принято' : 'Возврат';
+
+            card.innerHTML = `
+                <div class="card-header">
+                    <span class="student-name">${sub.students?.name || 'Unknown'}</span>
+                    <span class="badge ${badgeClass}">${typeLabels[sub.type]}</span>
+                </div>
+                <div class="card-meta">${sub.title || 'Без названия'} • ${new Date(sub.submitted_at || sub.created_at).toLocaleString('ru')}</div>
+                ${currentCheckView === 'archive' ? `<span class="badge ${statusBadge}" style="margin-top:5px;">${statusText}</span>` : ''}
+                ${sub.content_url ? `<a href="${normalizeUrl(sub.content_url)}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
+            `;
+            return card;
         }
 
         function openReview(sub) {
@@ -937,11 +1005,12 @@
             
             if (!assignments.length) return alert('Заполните хотя бы одно задание!');
 
-            const selectedGroup = document.getElementById('week-group').value;
+            const selectedGroups = getSelectedWeekGroups();
             let studentsQuery = db.from('students').select('telegram_id');
-            if (selectedGroup) studentsQuery = studentsQuery.eq('group_name', selectedGroup);
+            if (selectedGroups.length) studentsQuery = studentsQuery.in('group_name', selectedGroups);
             const { data: students } = await studentsQuery;
-            if (!students.length) return alert(selectedGroup ? `В группе «${selectedGroup}» нет учеников!` : 'Нет учеников в базе!');
+            if (!students.length) return alert(selectedGroups.length ? 'В выбранных группах нет учеников!' : 'Нет учеников в базе!');
+            const assignedGroupLabel = selectedGroups.length ? selectedGroups.join(', ') : 'Все ученики';
             
             const bulkInsert = [];
             students.forEach(stu => {
@@ -954,7 +1023,7 @@
                         activation_status: 'scheduled',
                         week_label: date,
                         status: 'assigned',
-                        assigned_group: selectedGroup || 'Все ученики'
+                        assigned_group: assignedGroupLabel
                     });
                 });
             });
@@ -970,7 +1039,8 @@
                 document.getElementById('weekly-title').value = '';
                 document.getElementById('weekly-url').value = '';
                 document.getElementById('weekly-comment').value = '';
-                document.getElementById('week-group').value = '';
+                document.getElementById('week-group-all').checked = true;
+                document.querySelectorAll('.week-group-checkbox').forEach(cb => cb.checked = false);
             } catch(e) { alert('Ошибка: ' + e.message); }
         }
 
@@ -1201,8 +1271,14 @@
                 }).join('');
 
                 const groupLabel = items[itemKeys[0]].assigned_group || 'Группа не указана';
+                const deleteWeekButton = opts.deletable
+                    ? `<button class="btn-danger" style="width:auto; padding:6px 14px; font-size:12px; margin:0;" onclick="deleteWholeWeek('${weekLabel}')">🗑️ Удалить неделю</button>`
+                    : '';
                 return `<div style="margin-bottom:20px;">
-                    <h4 style="margin-bottom:2px;">Неделя от ${weekLabel}</h4>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                        <h4 style="margin:0;">Неделя от ${weekLabel}</h4>
+                        ${deleteWeekButton}
+                    </div>
                     <div style="font-size:13px; color:#666; margin-bottom:10px;">👥 ${groupLabel}</div>
                     ${itemsHtml}
                 </div>`;
@@ -1244,6 +1320,17 @@
                 closeGroupEdit();
                 if (currentPlanSubTab === 'draft') loadDrafts();
                 else if (currentPlanSubTab === 'current') loadCurrentWeek();
+            } catch(e) { alert('Ошибка: ' + e.message); }
+        }
+
+        // Удаление недели целиком (только из Черновика — неделя ещё не началась)
+        async function deleteWholeWeek(weekLabel) {
+            if (!confirm(`Удалить всю неделю от ${weekLabel} целиком (все дни и еженедельное задание) для всех учеников? Отменить будет нельзя.`)) return;
+
+            try {
+                await db.from('assignments').delete().eq('week_label', weekLabel);
+                alert('Неделя удалена.');
+                loadDrafts();
             } catch(e) { alert('Ошибка: ' + e.message); }
         }
 
