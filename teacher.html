@@ -53,23 +53,27 @@
         .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
 
         /* Под-табы для проверки */
-        .sub-tabs { 
-            display: flex; 
-            background: #f9f9f9; 
-            padding: 10px 15px; 
-            gap: 10px; 
-            border-bottom: 1px solid #eee; 
+        .sub-tabs {
+            display: flex;
+            background: #f9f9f9;
+            padding: 10px 15px;
+            gap: 10px;
+            border-bottom: 1px solid #eee;
             flex-shrink: 0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
-        .sub-tab { 
-            padding: 8px 16px; 
-            border-radius: 20px; 
-            font-size: 13px; 
-            font-weight: 600; 
-            cursor: pointer; 
-            background: white; 
-            border: 1px solid #ddd; 
-            color: #666; 
+        .sub-tab {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            background: white;
+            border: 1px solid #ddd;
+            color: #666;
+            flex-shrink: 0;
+            white-space: nowrap;
         }
         .sub-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
         .tab-count-badge {
@@ -263,7 +267,7 @@
 
                 <div style="margin-top:20px; padding-top:15px; border-top:1px solid #eee;">
                     <label style="font-weight:bold; display:block; margin-bottom:5px;">Дата активации:</label>
-                    <input type="date" id="activation-date" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:16px;">
+                    <input type="date" id="activation-date" style="width:100%; max-width:100%; box-sizing:border-box; -webkit-appearance:none; appearance:none; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:16px;">
                 </div>
 
                 <button class="btn-primary" onclick="scheduleWeek()">🚀 Запланировать неделю</button>
