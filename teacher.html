@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Sasha Math - Teacher Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
@@ -72,6 +72,11 @@
             color: #666; 
         }
         .sub-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .tab-count-badge {
+            display: inline-block; margin-left: 6px; background: var(--danger); color: white;
+            font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; vertical-align: middle;
+        }
+        .sub-tab.active .tab-count-badge { background: rgba(255,255,255,0.3); }
 
         /* Контейнеры контента */
         .content-area { 
@@ -211,7 +216,7 @@
 
     <!-- Под-табы для проверки -->
     <div id="sub-tabs-container" class="sub-tabs">
-        <div class="sub-tab active" onclick="switchSubTab('pending', this)">📥 На проверке</div>
+        <div class="sub-tab active" onclick="switchSubTab('pending', this)">📥 На проверке<span id="pending-count-badge" class="tab-count-badge" style="display:none;"></span></div>
         <div class="sub-tab" onclick="switchSubTab('archive', this)">📂 Архив</div>
     </div>
 
@@ -677,9 +682,27 @@
             return [...document.querySelectorAll('.week-group-checkbox:checked')].map(cb => cb.value);
         }
 
+        async function updatePendingCount() {
+            const badge = document.getElementById('pending-count-badge');
+            if (!badge) return;
+            const { count, error } = await db
+                .from('assignments')
+                .select('id', { count: 'exact', head: true })
+                .eq('status', 'submitted');
+
+            if (error || !count) {
+                badge.style.display = 'none';
+                badge.innerText = '';
+                return;
+            }
+            badge.innerText = count;
+            badge.style.display = 'inline-block';
+        }
+
         async function loadSubmissions() {
             const list = document.getElementById('submissions-list');
             list.innerHTML = '<div style="text-align:center; padding:40px;">Загрузка...</div>';
+            updatePendingCount();
 
             let query = db.from('assignments').select('*, students(name, group_name)').order('submitted_at', { ascending: false });
 
