@@ -1,5 +1,6 @@
 main.py
 parent_bot.py
+__pycache__/
 .claude/
 ARCHITECTURE.md
 GOOGLE_SHEETS_SPEC.md

@@ -576,7 +576,7 @@
             try {
                 const { data, error } = await db
                     .from('mock_exam_results')
-                    .select('exam_name, score, created_at')
+                    .select('exam_name, score, exam_date, created_at')
                     .eq('student_id', currentUser.id)
                     .order('created_at', { ascending: true });
 
@@ -643,11 +643,18 @@
             `;
         }
 
+        // exam_date — чистая дата (YYYY-MM-DD, без времени), парсим вручную, чтобы не словить сдвиг на день из-за часового пояса браузера
+        function formatPlainDate(dateStr) {
+            const [y, m, d] = dateStr.split('-');
+            return `${d}.${m}.${y}`;
+        }
+
         function showExamInfo(index) {
             const p = mockExamPoints[index];
             const box = document.getElementById('exam-info-box');
             if (!p || !box) return;
-            const date = p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '—';
+            const date = p.exam_date ? formatPlainDate(p.exam_date)
+                : (p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '—');
             box.innerHTML = `<b>${p.exam_name || 'Пробник'}</b> • ${p.score} баллов • ${date}`;
         }
 
