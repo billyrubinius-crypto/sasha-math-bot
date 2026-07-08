@@ -471,17 +471,20 @@
         }
 
         // --- ПРОФИЛЬ И ИСТОРИЯ ---
-        async function loadProfile() {
+        async function loadProfile(isRetryAfterInsert) {
             try {
                 let { data, error } = await db.from('students').select('*').eq('telegram_id', currentUser.id).single();
-                
+
                 if (error && error.code === 'PGRST116') {
-                    await db.from('students').insert([{
+                    // Повторяем не больше одного раза: если insert не удался, без этого select→insert зациклились бы навсегда
+                    if (isRetryAfterInsert) throw new Error('Не удалось создать профиль ученика');
+                    const { error: insertError } = await db.from('students').insert([{
                         telegram_id: currentUser.id, name: currentUser.first_name,
                         telegram_username: currentUser.username || null,
                         rating: 50, huikons: 0, lives: 3, current_streak: 0
                     }]);
-                    return loadProfile();
+                    if (insertError) throw insertError;
+                    return loadProfile(true);
                 } else if (error) { throw error; }
                 
                 document.getElementById('val-rating').innerText = data.rating;
@@ -605,7 +608,9 @@
             const plotH = H - padT - padB;
 
             const scores = points.map(p => Number(p.score) || 0);
-            const minScore = 40;
+            // Ось начинается с 40 для читаемости разброса, но если есть балл ниже — опускаем её,
+            // чтобы низкий результат не отображался «прилипшим» к отметке 40 (то есть выше реального)
+            const minScore = Math.min(40, Math.floor(Math.min(...scores) / 10) * 10);
             const maxScore = Math.max(minScore + 20, Math.ceil(Math.max(...scores) / 10) * 10);
 
             const xFor = (i) => points.length > 1 ? padL + (plotW * i / (points.length - 1)) : padL + plotW / 2;

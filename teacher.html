@@ -284,7 +284,7 @@
                     <input type="date" id="activation-date" style="width:100%; max-width:100%; box-sizing:border-box; -webkit-appearance:none; appearance:none; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:16px;">
                 </div>
 
-                <button class="btn-primary" onclick="scheduleWeek()">🚀 Запланировать неделю</button>
+                <button class="btn-primary" id="btn-schedule-week" onclick="scheduleWeek()">🚀 Запланировать неделю</button>
             </div>
 
             <div class="week-planner">
@@ -302,7 +302,7 @@
                     <label class="pdf-upload-btn">📎<input type="file" accept="application/pdf" onchange="handlePdfUpload(event, 'indiv-url')"></label>
                 </div>
                 <textarea id="indiv-comment" placeholder="Комментарий ученику" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; min-height:60px;"></textarea>
-                <button class="btn-primary" onclick="assignIndividual()" style="margin-top:10px;">Назначить индивидуально</button>
+                <button class="btn-primary" id="btn-assign-indiv" onclick="assignIndividual()" style="margin-top:10px;">Назначить индивидуально</button>
             </div>
         </div>
 
@@ -939,15 +939,18 @@
             const feedback = document.getElementById('rev-feedback').value.trim();
             
             try {
+                // Состояние читаем до обновления: повторное «Принять» уже принятой работы (открытой из Архива) не должно начислять бонус ещё раз
+                const { data: sub } = await db.from('assignments').select('student_id, type, status, approval_status').eq('id', currentSubmissionId).single();
+                const alreadyApproved = sub.status === 'checked' && sub.approval_status === 'approved';
+
                 await db.from('assignments').update({
                     status: 'checked',
                     approval_status: status,
                     teacher_feedback: feedback,
                     checked_at: new Date().toISOString()
                 }).eq('id', currentSubmissionId);
-                
-                if (status === 'approved') {
-                    const { data: sub } = await db.from('assignments').select('student_id, type').eq('id', currentSubmissionId).single();
+
+                if (status === 'approved' && !alreadyApproved) {
                     if (sub.type === 'daily') {
                         await processStreak(sub.student_id);
                     } else {
@@ -1055,15 +1058,17 @@
             const { data: student } = await db.from('students').select('huikons').eq('telegram_id', sub.student_id).single();
             
             const newBalance = Math.max(0, (student.huikons || 0) + selectedPenalty);
-            
+            // В историю пишем фактически списанное: баланс не уходит в минус, и сумма истории должна сходиться с балансом
+            const actualChange = newBalance - (student.huikons || 0);
+
             try {
                 await db.from('students').update({ huikons: newBalance }).eq('telegram_id', sub.student_id);
                 await db.from('balance_history').insert([{
                     student_id: sub.student_id,
-                    change_amount: selectedPenalty,
+                    change_amount: actualChange,
                     reason: `penalty: ${reason}`
                 }]);
-                alert(`Списано ${Math.abs(selectedPenalty)} хуиконов. Новый баланс: ${newBalance}`);
+                alert(`Списано ${Math.abs(actualChange)} хуиконов. Новый баланс: ${newBalance}`);
                 closePenalty();
                 closeReview();
             } catch(e) { alert('Ошибка: ' + e.message); }
@@ -1104,30 +1109,33 @@
             
             if (!assignments.length) return alert('Заполните хотя бы одно задание!');
 
-            const selectedGroups = getSelectedWeekGroups();
-            let studentsQuery = db.from('students').select('telegram_id');
-            if (selectedGroups.length) studentsQuery = studentsQuery.in('group_name', selectedGroups);
-            const { data: students } = await studentsQuery;
-            if (!students.length) return alert(selectedGroups.length ? 'В выбранных группах нет учеников!' : 'Нет учеников в базе!');
-            const assignedGroupLabel = selectedGroups.length ? selectedGroups.join(', ') : 'Все ученики';
-            
-            const bulkInsert = [];
-            students.forEach(stu => {
-                assignments.forEach(asn => {
-                    const asnDate = asn.day_of_week ? addDaysToDate(date, asn.day_of_week - 1) : date;
-                    bulkInsert.push({
-                        student_id: stu.telegram_id,
-                        ...asn,
-                        scheduled_date: asnDate,
-                        activation_status: 'scheduled',
-                        week_label: date,
-                        status: 'assigned',
-                        assigned_group: assignedGroupLabel
+            // Блокируем кнопку на время сохранения — двойной клик вставил бы всю неделю дважды
+            const btn = document.getElementById('btn-schedule-week');
+            btn.disabled = true;
+            try {
+                const selectedGroups = getSelectedWeekGroups();
+                let studentsQuery = db.from('students').select('telegram_id');
+                if (selectedGroups.length) studentsQuery = studentsQuery.in('group_name', selectedGroups);
+                const { data: students } = await studentsQuery;
+                if (!students || !students.length) return alert(selectedGroups.length ? 'В выбранных группах нет учеников!' : 'Нет учеников в базе!');
+                const assignedGroupLabel = selectedGroups.length ? selectedGroups.join(', ') : 'Все ученики';
+
+                const bulkInsert = [];
+                students.forEach(stu => {
+                    assignments.forEach(asn => {
+                        const asnDate = asn.day_of_week ? addDaysToDate(date, asn.day_of_week - 1) : date;
+                        bulkInsert.push({
+                            student_id: stu.telegram_id,
+                            ...asn,
+                            scheduled_date: asnDate,
+                            activation_status: 'scheduled',
+                            week_label: date,
+                            status: 'assigned',
+                            assigned_group: assignedGroupLabel
+                        });
                     });
                 });
-            });
-            
-            try {
+
                 await db.from('assignments').insert(bulkInsert);
                 alert(`Запланировано ${bulkInsert.length} заданий на ${date}!`);
                 for (let i = 0; i < 7; i++) {
@@ -1141,6 +1149,7 @@
                 document.getElementById('week-group-all').checked = true;
                 document.querySelectorAll('.week-group-checkbox').forEach(cb => cb.checked = false);
             } catch(e) { alert('Ошибка: ' + e.message); }
+            finally { btn.disabled = false; }
         }
 
         // --- ПОИСК УЧЕНИКА ПО USERNAME (индивидуальное задание) ---
@@ -1193,6 +1202,9 @@
 
             if (!selectedIndivStudentId || !title) return alert('Выберите ученика из подсказок и укажите название!');
 
+            // Блокируем кнопку на время сохранения — двойной клик назначил бы задание дважды
+            const btn = document.getElementById('btn-assign-indiv');
+            btn.disabled = true;
             try {
                 await db.from('assignments').insert([{
                     student_id: selectedIndivStudentId,
@@ -1210,6 +1222,7 @@
                 document.getElementById('indiv-url').value = '';
                 document.getElementById('indiv-comment').value = '';
             } catch(e) { alert('Ошибка: ' + e.message); }
+            finally { btn.disabled = false; }
         }
 
         // --- ПОДВКЛАДКИ ВНУТРИ "ПЛАНИРОВАНИЕ" ---
@@ -1305,12 +1318,21 @@
             renderWeekGroups(container, filtered, { editable: false, emptyText: 'Архив пуст' });
         }
 
-        // Группирует строки по неделе, затем по (тип, день недели) — контент одинаков для всех учеников этой недели
+        // Группирует строки по неделе, затем по (тип, день недели) — контент одинаков для всех учеников этой недели.
+        // Ключ недели — week_label + assigned_group: на одну дату активации могут существовать разные недели
+        // для разных групп, и без учёта группы они сливались бы в одну (а правка/удаление задевали бы чужую неделю).
         let weekGroupRegistry = [];
+        let weekDeleteRegistry = [];
+
+        // Дополняет запрос фильтром по снимку группы; у недель, созданных до появления assigned_group, поле NULL
+        function filterByAssignedGroup(query, assignedGroup) {
+            return assignedGroup ? query.eq('assigned_group', assignedGroup) : query.is('assigned_group', null);
+        }
 
         function renderWeekGroups(container, rows, opts) {
             opts = opts || {};
             weekGroupRegistry = [];
+            weekDeleteRegistry = [];
 
             if (!rows || rows.length === 0) {
                 container.innerHTML = `<div style="text-align:center; padding:40px; color:#999;">${opts.emptyText || 'Пусто'}</div>`;
@@ -1319,17 +1341,19 @@
 
             const weeks = {};
             rows.forEach(r => {
-                if (!weeks[r.week_label]) weeks[r.week_label] = {};
+                const wKey = r.week_label + '||' + (r.assigned_group || '');
+                if (!weeks[wKey]) weeks[wKey] = { weekLabel: r.week_label, assignedGroup: r.assigned_group || null, items: {} };
                 const key = r.type === 'daily' ? `daily-${r.day_of_week}` : 'weekly';
-                if (!weeks[r.week_label][key]) weeks[r.week_label][key] = { ...r, count: 0 };
-                weeks[r.week_label][key].count++;
+                if (!weeks[wKey].items[key]) weeks[wKey].items[key] = { ...r, count: 0 };
+                weeks[wKey].items[key].count++;
             });
 
             const dayNames = ['', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
-            const weekLabels = Object.keys(weeks).sort();
+            const weekKeys = Object.keys(weeks).sort();
 
-            container.innerHTML = weekLabels.map(weekLabel => {
-                const items = weeks[weekLabel];
+            container.innerHTML = weekKeys.map(wKey => {
+                const week = weeks[wKey];
+                const items = week.items;
                 const itemKeys = Object.keys(items).sort((a, b) => {
                     if (a === 'weekly') return 1;
                     if (b === 'weekly') return -1;
@@ -1346,7 +1370,8 @@
                     if (canEdit) {
                         const idx = weekGroupRegistry.length;
                         weekGroupRegistry.push({
-                            weekLabel: weekLabel, type: item.type, dayOfWeek: item.day_of_week || null,
+                            weekLabel: week.weekLabel, type: item.type, dayOfWeek: item.day_of_week || null,
+                            assignedGroup: week.assignedGroup,
                             title: item.title, url: item.content_url, comment: item.teacher_comment
                         });
                         editButton = `<button class="btn-secondary" style="margin-top:8px;" onclick="openEditGroup(${idx})">✏️ Редактировать</button>`;
@@ -1369,13 +1394,16 @@
                     `;
                 }).join('');
 
-                const groupLabel = items[itemKeys[0]].assigned_group || 'Группа не указана';
-                const deleteWeekButton = opts.deletable
-                    ? `<button class="btn-danger" style="width:auto; padding:6px 14px; font-size:12px; margin:0;" onclick="deleteWholeWeek('${weekLabel}')">🗑️ Удалить неделю</button>`
-                    : '';
+                const groupLabel = week.assignedGroup || 'Группа не указана';
+                let deleteWeekButton = '';
+                if (opts.deletable) {
+                    const wIdx = weekDeleteRegistry.length;
+                    weekDeleteRegistry.push({ weekLabel: week.weekLabel, assignedGroup: week.assignedGroup });
+                    deleteWeekButton = `<button class="btn-danger" style="width:auto; padding:6px 14px; font-size:12px; margin:0;" onclick="deleteWholeWeek(${wIdx})">🗑️ Удалить неделю</button>`;
+                }
                 return `<div style="margin-bottom:20px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
-                        <h4 style="margin:0;">Неделя от ${weekLabel}</h4>
+                        <h4 style="margin:0;">Неделя от ${week.weekLabel}</h4>
                         ${deleteWeekButton}
                     </div>
                     <div style="font-size:13px; color:#666; margin-bottom:10px;">👥 ${groupLabel}</div>
@@ -1412,6 +1440,7 @@
                 .eq('week_label', g.weekLabel)
                 .eq('type', g.type);
             if (g.type === 'daily') query = query.eq('day_of_week', g.dayOfWeek);
+            query = filterByAssignedGroup(query, g.assignedGroup);
 
             try {
                 await query;
@@ -1423,11 +1452,13 @@
         }
 
         // Удаление недели целиком (только из Черновика — неделя ещё не началась)
-        async function deleteWholeWeek(weekLabel) {
-            if (!confirm(`Удалить всю неделю от ${weekLabel} целиком (все дни и еженедельное задание) для всех учеников? Отменить будет нельзя.`)) return;
+        async function deleteWholeWeek(idx) {
+            const w = weekDeleteRegistry[idx];
+            if (!w) return;
+            if (!confirm(`Удалить всю неделю от ${w.weekLabel} (${w.assignedGroup || 'группа не указана'}) целиком (все дни и еженедельное задание) для всех учеников? Отменить будет нельзя.`)) return;
 
             try {
-                await db.from('assignments').delete().eq('week_label', weekLabel);
+                await filterByAssignedGroup(db.from('assignments').delete().eq('week_label', w.weekLabel), w.assignedGroup);
                 alert('Неделя удалена.');
                 loadDrafts();
             } catch(e) { alert('Ошибка: ' + e.message); }
@@ -1442,6 +1473,7 @@
                 .eq('week_label', g.weekLabel)
                 .eq('type', g.type);
             if (g.type === 'daily') query = query.eq('day_of_week', g.dayOfWeek);
+            query = filterByAssignedGroup(query, g.assignedGroup);
 
             try {
                 await query;
