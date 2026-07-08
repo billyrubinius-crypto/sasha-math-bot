@@ -954,10 +954,19 @@
             }]);
         }
 
-        function showPenaltyModal() {
+        async function showPenaltyModal() {
             document.getElementById('penalty-modal').classList.add('active');
             selectedPenalty = -20;
             updatePenaltyButtons();
+
+            const balanceEl = document.getElementById('pen-balance');
+            balanceEl.innerText = '...';
+            if (!currentSubmissionId) return;
+
+            const { data: sub } = await db.from('assignments').select('student_id').eq('id', currentSubmissionId).single();
+            if (!sub) return;
+            const { data: student } = await db.from('students').select('huikons').eq('telegram_id', sub.student_id).single();
+            balanceEl.innerText = student ? (student.huikons || 0) : '?';
         }
 
         function closePenalty() {

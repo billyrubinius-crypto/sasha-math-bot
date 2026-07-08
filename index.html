@@ -269,6 +269,7 @@
                 <div id="assignment-details" style="display:none; background:var(--tg-bg); border-radius:12px; padding:15px; margin-bottom:15px; border:1px solid rgba(128,128,128,0.2);">
                     <div style="font-weight:bold; margin-bottom:8px; font-size:15px;" id="detail-title"></div>
                     <a id="detail-link" href="#" target="_blank" style="color:var(--tg-link); text-decoration:none; font-size:14px; display:inline-block; word-break:break-all;">🔗 Открыть условие задачи</a>
+                    <div id="detail-feedback" style="display:none; margin-top:10px; padding:10px; background:rgba(220,53,69,0.1); border-radius:8px; font-size:13px; color:#721c24;"></div>
                 </div>
 
                 <!-- Загрузка фото -->
@@ -721,13 +722,14 @@
             select.innerHTML = '<option value="">Выбери задание из списка...</option>';
             
             try {
-                // Берем ВСЕ задания ученика со статусом 'assigned', у которых activation_status = 'active'
+                // Берём задания ученика, у которых activation_status = 'active': либо ещё не сданные ('assigned'),
+                // либо возвращённые учителем на переделку ('checked' + approval_status='rejected')
                 const { data, error } = await db
                     .from('assignments')
                     .select('*')
                     .eq('student_id', currentUser.id)
-                    .eq('status', 'assigned')
-                    .eq('activation_status', 'active') 
+                    .eq('activation_status', 'active')
+                    .or('status.eq.assigned,and(status.eq.checked,approval_status.eq.rejected)')
                     .order('created_at', { ascending: true });
 
                 if (error) throw error;
@@ -741,14 +743,15 @@
                     select.disabled = true;
                     return;
                 }
-                
+
                 select.disabled = false;
                 activeAssignments.forEach(asn => {
                     const option = document.createElement('option');
                     option.value = asn.id;
-                    
+
                     const typeLabel = asn.type === 'daily' ? '📅' : asn.type === 'weekly' ? '🔥' : '👤';
-                    option.innerText = `${typeLabel} ${asn.title || 'Без названия'}`;
+                    const retryLabel = asn.status === 'checked' ? ' (переделать)' : '';
+                    option.innerText = `${typeLabel} ${asn.title || 'Без названия'}${retryLabel}`;
                     select.appendChild(option);
                 });
                 
@@ -780,6 +783,15 @@
                 } else {
                     linkEl.style.display = 'none';
                 }
+
+                const feedbackEl = document.getElementById('detail-feedback');
+                if (assignment.status === 'checked' && assignment.teacher_feedback) {
+                    feedbackEl.innerText = `❌ Комментарий учителя: ${assignment.teacher_feedback}`;
+                    feedbackEl.style.display = 'block';
+                } else {
+                    feedbackEl.style.display = 'none';
+                }
+
                 detailsDiv.style.display = 'block';
                 btn.disabled = false;
             }
@@ -900,19 +912,23 @@
                 }).eq('id', assignmentId);
                 
                 if (dbError) throw dbError;
-                
-                // 3. Начисляем баллы (теперь динамически!)
-                await db.from('balance_history').insert([{
-                    student_id: currentUser.id,
-                    change_amount: rewardPoints,
-                    reason: `dz_upload_${assignment.type}` // Сохраняем тип для истории
-                }]);
-                
-                await db.from('students').update({ 
-                    huikons: (currentUser.stats?.huikons || 0) + rewardPoints 
-                }).eq('telegram_id', currentUser.id);
-                
-                status.innerText = `✅ ДЗ загружено! (+${rewardPoints} хуиконов)`;
+
+                // 3. Начисляем баллы за загрузку — но только за первую сдачу, не за пересдачу возвращённой работы
+                //    (хуиконы за неё уже были начислены при первой загрузке и не отзывались при возврате)
+                const isResubmission = assignment.status === 'checked';
+                if (!isResubmission) {
+                    await db.from('balance_history').insert([{
+                        student_id: currentUser.id,
+                        change_amount: rewardPoints,
+                        reason: `dz_upload_${assignment.type}` // Сохраняем тип для истории
+                    }]);
+
+                    await db.from('students').update({
+                        huikons: (currentUser.stats?.huikons || 0) + rewardPoints
+                    }).eq('telegram_id', currentUser.id);
+                }
+
+                status.innerText = isResubmission ? '✅ Работа пересдана на проверку!' : `✅ ДЗ загружено! (+${rewardPoints} хуиконов)`;
                 status.style.color = "#4caf50";
                 
                 // Сброс формы
