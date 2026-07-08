@@ -680,9 +680,9 @@
                 data.forEach(item => {
                     const isPositive = item.change_amount > 0;
                     const reasonMap = {
-                        'dz_upload': 'Загрузка ДЗ',
-                        'dz_approved': 'ДЗ проверено ✅',
-                        'dz_upload_individual': 'Индивидуальное задание сдано',
+                        'dz_upload_daily': 'Загрузка ежедневного ДЗ',
+                        'dz_upload_weekly': 'Загрузка еженедельного ДЗ',
+                        'dz_upload_individual': 'Загрузка индивидуального задания',
                         'streak_day_1': 'Серия 1 день 🔥',
                         'streak_day_2': 'Серия 2 дня 🔥',
                         'streak_day_3': 'Серия 3+ дней 🔥',
@@ -691,11 +691,14 @@
                     };
                   // Специальная логика для штрафов
                     let displayReason = reasonMap[item.reason];
-                    if (!displayReason && item.reason.startsWith('penalty:')) {
-                        // Берем текст после "penalty: " 
+                    if (!displayReason && item.reason && item.reason.startsWith('penalty:')) {
+                        // Берем текст после "penalty: "
                         const penaltyText = item.reason.replace('penalty: ', '');
                         displayReason = `⚠️ Штраф: ${penaltyText}`;
-                    }                  
+                    }
+                    if (!displayReason) {
+                        displayReason = item.reason || 'Начисление';
+                    }
                     const li = document.createElement('li');
                     li.className = 'history-item';
                     li.innerHTML = `
