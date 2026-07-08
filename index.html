@@ -925,15 +925,12 @@
                 //    (хуиконы за неё уже были начислены при первой загрузке и не отзывались при возврате)
                 const isResubmission = assignment.status === 'checked';
                 if (!isResubmission) {
-                    await db.from('balance_history').insert([{
-                        student_id: currentUser.id,
-                        change_amount: rewardPoints,
-                        reason: `dz_upload_${assignment.type}` // Сохраняем тип для истории
-                    }]);
-
-                    await db.from('students').update({
-                        huikons: (currentUser.stats?.huikons || 0) + rewardPoints
-                    }).eq('telegram_id', currentUser.id);
+                    const { error: rpcError } = await db.rpc('add_huikons', {
+                        p_student_id: currentUser.id,
+                        p_amount: rewardPoints,
+                        p_reason: `dz_upload_${assignment.type}` // Сохраняем тип для истории
+                    });
+                    if (rpcError) throw rpcError;
                 }
 
                 status.innerText = isResubmission ? '✅ Работа пересдана на проверку!' : `✅ ДЗ загружено! (+${rewardPoints} хуиконов)`;

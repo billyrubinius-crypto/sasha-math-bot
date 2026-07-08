@@ -1,5 +1,8 @@
 main.py
 parent_bot.py
+.env
+.env.example
+requirements.txt
 __pycache__/
 .claude/
 ARCHITECTURE.md
@@ -8,3 +11,4 @@ PLAN_OF_IMPLEMENTATION.md
 CLAUDE.md
 AUDIT.md
 ROADMAP.md
+database/
