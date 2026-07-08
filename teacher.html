@@ -127,6 +127,17 @@
         }
         
         .btn-primary { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 10px; }
+
+        /* Кнопка загрузки PDF рядом с полем ссылки */
+        .url-with-upload { display: flex; gap: 6px; }
+        .url-with-upload input[type="url"] { flex: 1; min-width: 0; }
+        .pdf-upload-btn {
+            display: flex; align-items: center; justify-content: center;
+            width: 42px; flex-shrink: 0; cursor: pointer;
+            background: white; border: 1px solid #ddd; border-radius: 6px; font-size: 18px;
+        }
+        .pdf-upload-btn input[type="file"] { display: none; }
+        .pdf-upload-btn.uploading { opacity: 0.5; pointer-events: none; }
         .btn-secondary { background: #6c757d; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; width: 100%; cursor: pointer; margin-top: 10px; }
 
         /* Список работ для проверки */
@@ -261,7 +272,10 @@
                 <div style="margin-top:20px; padding:15px; background:#f9f9f9; border-radius:8px; border-left:4px solid var(--primary);">
                     <label style="font-weight:bold; display:block; margin-bottom:5px;">🔥 Еженедельное задание:</label>
                     <input type="text" id="weekly-title" placeholder="Название" style="width:100%; padding:8px; margin-bottom:5px; border:1px solid #ddd; border-radius:6px;">
-                    <input type="url" id="weekly-url" placeholder="Ссылка на задачу" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px;">
+                    <div class="url-with-upload" style="margin-bottom:5px;">
+                        <input type="url" id="weekly-url" placeholder="Ссылка на задачу" style="padding:8px; border:1px solid #ddd; border-radius:6px;">
+                        <label class="pdf-upload-btn">📎<input type="file" accept="application/pdf" onchange="handlePdfUpload(event, 'weekly-url')"></label>
+                    </div>
                     <textarea id="weekly-comment" placeholder="Комментарий ученику (необязательно)" style="width:100%; padding:8px; margin-top:5px; border:1px solid #ddd; border-radius:6px; min-height:40px; resize:none;"></textarea>
                 </div>
 
@@ -283,7 +297,10 @@
                     <div id="indiv-username-suggestions" class="username-suggestions"></div>
                 </div>
                 <input type="text" id="indiv-title" placeholder="Название" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:6px;">
-                <input type="url" id="indiv-url" placeholder="Ссылка на задачу" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:6px;">
+                <div class="url-with-upload" style="margin-bottom:10px;">
+                    <input type="url" id="indiv-url" placeholder="Ссылка на задачу" style="padding:10px; border:1px solid #ddd; border-radius:6px;">
+                    <label class="pdf-upload-btn">📎<input type="file" accept="application/pdf" onchange="handlePdfUpload(event, 'indiv-url')"></label>
+                </div>
                 <textarea id="indiv-comment" placeholder="Комментарий ученику" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; min-height:60px;"></textarea>
                 <button class="btn-primary" onclick="assignIndividual()" style="margin-top:10px;">Назначить индивидуально</button>
             </div>
@@ -325,7 +342,10 @@
             <button class="close-modal" onclick="closeGroupEdit()">✕</button>
             <h3 style="margin-top:0">✏️ Редактировать задание</h3>
             <input type="text" id="edit-group-title" placeholder="Название" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:6px;">
-            <input type="url" id="edit-group-url" placeholder="Ссылка на задачу" style="width:100%; padding:10px; margin-bottom:10px; border:1px solid #ddd; border-radius:6px;">
+            <div class="url-with-upload" style="margin-bottom:10px;">
+                <input type="url" id="edit-group-url" placeholder="Ссылка на задачу" style="padding:10px; border:1px solid #ddd; border-radius:6px;">
+                <label class="pdf-upload-btn">📎<input type="file" accept="application/pdf" onchange="handlePdfUpload(event, 'edit-group-url')"></label>
+            </div>
             <textarea id="edit-group-comment" placeholder="Комментарий ученику" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; min-height:60px;"></textarea>
             <p style="font-size:12px; color:#666;">Изменение применится сразу ко всем ученикам, которым назначена эта неделя.</p>
             <button class="btn-primary" onclick="saveGroupEdit()">💾 Сохранить</button>
@@ -395,6 +415,46 @@
         const SUPABASE_KEY = 'sb_publishable_rB0_CRkGuLwwyRenr8zHBA_Cf327mSZ';
         const PASS = 'sasha2024';
 
+        // Cloudinary Config — тот же аккаунт, что и в index.html, для загрузки PDF с заданиями
+        const CLOUDINARY_CLOUD_NAME = 'ddrn3vxm0';
+        const CLOUDINARY_UPLOAD_PRESET = 'sasha-math-dz';
+
+        // Загружает PDF в Cloudinary и подставляет получившуюся ссылку в указанное поле
+        async function handlePdfUpload(event, targetInputId) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const label = event.target.closest('.pdf-upload-btn');
+            const targetInput = document.getElementById(targetInputId);
+
+            label.classList.add('uploading');
+            try {
+                const url = await uploadPdfToCloudinary(file);
+                targetInput.value = url;
+            } catch (e) {
+                alert('Ошибка загрузки PDF: ' + e.message);
+            } finally {
+                label.classList.remove('uploading');
+                event.target.value = '';
+            }
+        }
+
+        async function uploadPdfToCloudinary(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+            formData.append('folder', 'sasha-math-tasks');
+
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!res.ok) throw new Error('Ошибка загрузки в Cloudinary');
+            const data = await res.json();
+            return data.secure_url;
+        }
+
         let db, currentSubmissionId = null, selectedPenalty = -20, studentsList = [];
         let currentCheckView = 'pending';
 
@@ -441,7 +501,10 @@
                         <div class="day-label">${day}</div>
                         <div class="day-inputs">
                             <input type="text" id="day-title-${i}" placeholder="Название задания">
-                            <input type="url" id="day-url-${i}" placeholder="Ссылка на РешуЕГЭ">
+                            <div class="url-with-upload">
+                                <input type="url" id="day-url-${i}" placeholder="Ссылка на РешуЕГЭ">
+                                <label class="pdf-upload-btn">📎<input type="file" accept="application/pdf" onchange="handlePdfUpload(event, 'day-url-${i}')"></label>
+                            </div>
                             <textarea id="day-comment-${i}" placeholder="Комментарий ученику (необязательно)" style="padding:8px; border:1px solid #ddd; border-radius:6px; font-size:13px; width:100%; min-height:40px; resize:none;"></textarea>
                         </div>
                     </div>`;
