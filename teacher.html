@@ -469,6 +469,14 @@
             return /^https?:\/\//i.test(url) ? url : 'https://' + url;
         }
 
+        // Экранирует пользовательский текст перед вставкой через innerHTML (имена, названия заданий,
+        // комментарии, названия групп и т.п. — всё, что вводит человек, а не сам код)
+        function esc(str) {
+            const div = document.createElement('div');
+            div.textContent = str ?? '';
+            return div.innerHTML;
+        }
+
         // Переменные для навигации по фото внутри модального окна
         let reviewPhotos = [];
         let reviewPhotoIndex = 0;
@@ -728,7 +736,16 @@
                 const label = document.createElement('label');
                 label.className = 'week-group-item';
                 label.style.cssText = 'display:flex; align-items:center; gap:8px;';
-                label.innerHTML = `<input type="checkbox" class="week-group-checkbox" value="${g}" onchange="onWeekGroupPick()"> ${g}`;
+                // Название группы — через DOM API, а не строкой в innerHTML: esc() не защищает
+                // атрибут value="..." от кавычек (только текстовое содержимое), а group_name — не код,
+                // а введённое помощником значение из Google Sheets
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'week-group-checkbox';
+                checkbox.value = g;
+                checkbox.onchange = onWeekGroupPick;
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(' ' + g));
                 container.appendChild(label);
             });
         }
@@ -846,10 +863,10 @@
 
             card.innerHTML = `
                 <div class="card-header">
-                    <span class="student-name">${sub.students?.name || 'Unknown'}</span>
+                    <span class="student-name">${esc(sub.students?.name || 'Unknown')}</span>
                     <span class="badge ${badgeClass}">${typeLabels[sub.type]}</span>
                 </div>
-                <div class="card-meta">${sub.title || 'Без названия'} • ${new Date(sub.submitted_at || sub.created_at).toLocaleString('ru')}</div>
+                <div class="card-meta">${esc(sub.title || 'Без названия')} • ${new Date(sub.submitted_at || sub.created_at).toLocaleString('ru')}</div>
                 ${currentCheckView === 'archive' ? `<span class="badge ${statusBadge}" style="margin-top:5px;">${statusText}</span>` : ''}
                 ${sub.content_url ? `<a href="${normalizeUrl(sub.content_url)}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
             `;
@@ -1173,7 +1190,7 @@
                 data.forEach(s => {
                     const item = document.createElement('div');
                     item.className = 'username-suggestion-item';
-                    item.innerHTML = `<b>@${s.telegram_username}</b> — ${s.name || ''}`;
+                    item.innerHTML = `<b>@${esc(s.telegram_username)}</b> — ${esc(s.name || '')}`;
                     item.onclick = () => selectIndivStudent(s.telegram_id, s.telegram_username, s.name);
                     box.appendChild(item);
                 });
@@ -1378,7 +1395,7 @@
                                 <span class="student-name">${label}</span>
                                 <span style="font-size:12px; color:#999;">${item.count} уч.</span>
                             </div>
-                            <div class="card-meta">${item.title || 'Без названия'}</div>
+                            <div class="card-meta">${esc(item.title || 'Без названия')}</div>
                             ${item.content_url ? `<a href="${normalizeUrl(item.content_url)}" target="_blank" class="card-link">🔗 Ссылка</a>` : ''}
                             ${editButton}
                             ${deleteButton}
@@ -1398,7 +1415,7 @@
                         <h4 style="margin:0;">Неделя от ${week.weekLabel}</h4>
                         ${deleteWeekButton}
                     </div>
-                    <div style="font-size:13px; color:#666; margin-bottom:10px;">👥 ${groupLabel}</div>
+                    <div style="font-size:13px; color:#666; margin-bottom:10px;">👥 ${esc(groupLabel)}</div>
                     ${itemsHtml}
                 </div>`;
             }).join('');
@@ -1493,10 +1510,10 @@
             container.innerHTML = data.map(a => `
                 <div class="submission-card" style="cursor:default;">
                     <div class="card-header">
-                        <span class="student-name">${a.students?.name || 'Unknown'}</span>
+                        <span class="student-name">${esc(a.students?.name || 'Unknown')}</span>
                         <span class="badge badge-individual">Индивидуальное</span>
                     </div>
-                    <div class="card-meta">${a.title || 'Без названия'} • ${new Date(a.created_at).toLocaleString('ru')}</div>
+                    <div class="card-meta">${esc(a.title || 'Без названия')} • ${new Date(a.created_at).toLocaleString('ru')}</div>
                     ${a.content_url ? `<a href="${normalizeUrl(a.content_url)}" target="_blank" class="card-link">🔗 Исходник</a>` : ''}
                     ${view === 'active' ? `<button class="btn-danger" style="margin-top:8px; padding:8px;" onclick="deleteIndividualAssignment('${a.id}')">🗑️ Удалить</button>` : ''}
                 </div>

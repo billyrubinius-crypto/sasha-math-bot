@@ -378,6 +378,14 @@
 
         function log(msg) { console.log(msg); }
 
+        // Экранирует пользовательский текст перед вставкой через innerHTML (имена, названия заданий,
+        // комментарии учителя и т.п. — всё, что вводит человек, а не сам код)
+        function esc(str) {
+            const div = document.createElement('div');
+            div.textContent = str ?? '';
+            return div.innerHTML;
+        }
+
         // Текущая дата в Москве (YYYY-MM-DD), не зависит от часового пояса устройства ученика
         function getTodayMSK() {
             return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Moscow' });
@@ -442,7 +450,7 @@
                 container.innerHTML = `<img src="${user.photo_url}" class="avatar-img">`;
             } else {
                 const initial = user.first_name ? user.first_name[0].toUpperCase() : '?';
-                container.innerHTML = `<div class="avatar-placeholder">${initial}</div>`;
+                container.innerHTML = `<div class="avatar-placeholder">${esc(initial)}</div>`;
             }
         }
 
@@ -661,7 +669,7 @@
             if (!p || !box) return;
             const date = p.exam_date ? formatPlainDate(p.exam_date)
                 : (p.created_at ? new Date(p.created_at).toLocaleDateString('ru-RU') : '—');
-            box.innerHTML = `<b>${p.exam_name || 'Пробник'}</b> • ${p.score} баллов • ${date}`;
+            box.innerHTML = `<b>${esc(p.exam_name || 'Пробник')}</b> • ${esc(p.score)} баллов • ${date}`;
         }
 
         async function loadBalanceHistory() {
@@ -708,7 +716,7 @@
                     li.className = 'history-item';
                     li.innerHTML = `
                         <div class="hist-info">
-                            <div class="hist-reason">${displayReason}</div>
+                            <div class="hist-reason">${esc(displayReason)}</div>
                             <div class="hist-date">${new Date(item.created_at).toLocaleDateString('ru-RU')}</div>
                         </div>                        
                         <div class="hist-amount ${isPositive ? 'hist-positive' : 'hist-negative'}">
@@ -819,7 +827,7 @@
             files.forEach((file, index) => {
                 const div = document.createElement('div');
                 div.className = 'file-item';
-                div.innerHTML = `<span>${index + 1}. ${file.name}</span>`;
+                div.innerHTML = `<span>${index + 1}. ${esc(file.name)}</span>`;
                 fileListDiv.appendChild(div);
             });
             
@@ -997,14 +1005,14 @@
                     if (hw.teacher_feedback) {
                         const isRejected = hw.approval_status === 'rejected';
                         commentHtml = `<div class="hw-comment ${isRejected ? 'rejected' : ''}">
-                             ${hw.teacher_feedback}
+                             ${esc(hw.teacher_feedback)}
                         </div>`;
                     }
-                    
+
                     li.innerHTML = `
                         <div class="hw-header">
                             <div>
-                                <div class="hw-variant">${hw.title || 'ДЗ'} <span class="hw-pages">📄 x${pagesCount}</span></div>
+                                <div class="hw-variant">${esc(hw.title || 'ДЗ')} <span class="hw-pages">📄 x${pagesCount}</span></div>
                                 <div class="hw-date">${date}</div>
                             </div>
                             <span class="hw-badge ${badgeClass}">${statusText}</span>
@@ -1047,7 +1055,7 @@
 
                     li.innerHTML = `
                         <div class="lb-rank">${rankDisplay}</div>
-                        <div class="lb-name">${student.name} ${isMe ? '(Вы)' : ''}</div>
+                        <div class="lb-name">${esc(student.name)} ${isMe ? '(Вы)' : ''}</div>
                         <div class="lb-score">${student.rating} ⭐</div>
                     `;
                     list.appendChild(li);
