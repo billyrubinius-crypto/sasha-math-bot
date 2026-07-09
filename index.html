@@ -975,7 +975,8 @@
                     .select('*')
                     .eq('student_id', currentUser.id)
                     .neq('status', 'assigned')
-                    .order('submitted_at', { ascending: false });
+                    .order('submitted_at', { ascending: false })
+                    .limit(100);
                 
                 if (error) throw error;
                 

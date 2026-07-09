@@ -793,7 +793,9 @@
             if (currentCheckView === 'pending') {
                 query = query.eq('status', 'submitted');
             } else {
-                query = query.eq('status', 'checked');
+                // Архив принятых/возвращённых работ растёт неограниченно — без лимита Supabase молча
+                // режет ответ на 1000 строк, и часть архива беззвучно пропадает (T7)
+                query = query.eq('status', 'checked').limit(200);
             }
 
             const { data, error } = await query;
@@ -1313,9 +1315,15 @@
             container.innerHTML = '<div style="text-align:center; padding:30px; color:#999;">Загрузка...</div>';
 
             const today = getTodayMSK();
+            // Фильтр завершённых недель перенесён из клиента в запрос (T7): неделя архивна, когда с даты
+            // активации прошло 6 дней. Это тот же критерий, что и в клиентском фильтре ниже
+            // (addDaysToDate(wl, 6) < today  ⟺  wl < addDaysToDate(today, -6)), но теперь Supabase не тянет
+            // текущие/будущие недели — на архивных данных ответ не упирается в молчаливый предел 1000 строк.
+            const archiveCutoff = addDaysToDate(today, -6);
             const { data, error } = await db.from('assignments')
                 .select('id, week_label, type, day_of_week, title, content_url, teacher_comment, scheduled_date, assigned_group')
                 .eq('type', type)
+                .lt('week_label', archiveCutoff)
                 .order('week_label', { ascending: false });
 
             if (error) { container.innerHTML = `<div style="color:red; padding:20px;">${error.message}</div>`; return; }
@@ -1496,7 +1504,7 @@
             const container = document.getElementById('archive-individual-list');
             container.innerHTML = '<div style="text-align:center; padding:30px; color:#999;">Загрузка...</div>';
 
-            let query = db.from('assignments').select('*, students(name)').eq('type', 'individual').order('created_at', { ascending: false });
+            let query = db.from('assignments').select('*, students(name)').eq('type', 'individual').order('created_at', { ascending: false }).limit(200);
             query = view === 'active' ? query.eq('status', 'assigned') : query.in('status', ['submitted', 'checked']);
 
             const { data, error } = await query;
